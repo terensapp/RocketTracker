@@ -35,14 +35,14 @@ Two boards, no soldering beyond an optional antenna wire. Prices are approximate
 
 Optional: a CR1220 coin cell ([adafruit.com/product/380](https://www.adafruit.com/product/380), $0.95) gives the GPS module a warm-start battery backup — not required, just speeds up subsequent fixes.
 
-### Receiver (stays in your hand) — ~$8
+### Receiver (stays in your hand) — check listing for price
 
 | Part | Price | Link |
 | --- | --- | --- |
-| Meshnology N30 (ESP32-S3 + SX1262, includes 1100mAh battery + case + antenna) | $7.99 | [meshnology.com](https://meshnology.com/products/n30-esp32-lora-v3-development-board-1100mah-battery-protect-case-set-with-863-928mhz-antenna-sx1262-lora-v3-devices) |
+| Meshnology N30, 2-pack (ESP32-S3 + SX1262, includes 1100mAh battery + case + 915MHz antenna per unit) | check listing | [Amazon](https://www.amazon.com/V3-Development-1100mAh-Battery-Protect/dp/B0F1CXG94J) |
 | USB-C cable, for flashing | — | any USB-C cable |
 
-The N30 ships as a kit (board, battery, case, antenna as separate pieces you assemble) rather than pre-built — expect a few minutes of snapping it together, not soldering.
+You only need one N30 for the receiver — the Amazon listing sells them as a 2-pack, so the second board makes a handy spare or a second ground unit. It ships as a kit (board, battery, case, antenna as separate pieces you assemble) rather than pre-built — expect a few minutes of snapping it together, not soldering.
 
 **Region note:** both sketches default to 915MHz (US). Outside the US, buy 868MHz-band antennas instead and change `LORA_FREQ_MHZ` to `868.0` in both `.ino` files — see the "Frequency/region" note in `SETUP_README.md`.
 
