@@ -7,7 +7,7 @@ No cellular network, no WiFi infrastructure, no subscription — just point-to-p
 ## How it works
 
 - **Transmitter** (rides in the rocket): reads lat/lon/altitude/satellite count off a GPS module and sends an 18-byte packet over LoRa once per second.
-- **Receiver** (stays in your hand): listens for those packets, shows the latest fix plus height-above-pad and max-altitude-reached on a small OLED, and hosts its own WiFi hotspot with a web page — connect your phone to it and tap "Navigate to Rocket" to jump straight into your maps app. No power switch on the board, but holding the top PRG button for a second puts it to sleep (and pressing it again wakes it back up), so it isn't draining its battery between launches.
+- **Receiver** (stays in your hand): listens for those packets, shows the latest fix plus height-above-pad and max-altitude-reached on a small OLED, and hosts its own WiFi hotspot with a web page — connect your phone to it and tap "Navigate to Rocket" to jump straight into your maps app. No power switch on the board, but holding the top PRG button for a second puts it to sleep (and pressing it again wakes it back up), so it isn't draining its battery between launches. It also shows battery status for both boards — its own, read locally, and the transmitter's, which hitches a ride in every LoRa packet — so you can check there's plenty of charge before walking out to the pad.
 
 Full technical detail — packet format, pin mappings, radio settings — is in [`SETUP_README.md`](SETUP_README.md) and in the comments at the top of each `.ino` file.
 

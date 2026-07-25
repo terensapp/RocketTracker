@@ -27,8 +27,9 @@
   clone boards occasionally shift a pin or two.
 
   PACKET FORMAT (must match the transmitter sketch exactly):
-    uint32_t seq, float lat, float lon, float alt_m, uint8_t sats, uint8_t fixValid
-    Total size: 18 bytes.
+    uint32_t seq, float lat, float lon, float alt_m, uint8_t sats, uint8_t fixValid,
+    uint8_t battPercent
+    Total size: 19 bytes.
 */
 
 #include <RadioLib.h>
@@ -86,6 +87,18 @@
 #define PRG_BUTTON_PIN 0
 #define SLEEP_HOLD_MS  1000   // how long to hold PRG to trigger sleep
 
+// This board's own battery-voltage-sense pins, per the Heltec WiFi LoRa 32 V3
+// reference library this clone is built on. VBAT_CTRL enables the sense
+// divider (it's normally left floating/pulled up to save power), VBAT_ADC is
+// where you read the result. If readings look off versus a multimeter, this
+// clone's divider resistors may differ slightly - the 238.7 constant below
+// is Heltec's own calibration for the genuine board.
+#define VBAT_CTRL_PIN 37
+#define VBAT_ADC_PIN  1
+
+// Batteries below this we flag with "!" on-screen, same as stale GPS data.
+#define LOW_BATTERY_PERCENT 20
+
 // ---------------------------------------------------------------------
 
 #pragma pack(push, 1)
@@ -96,6 +109,7 @@ struct RocketPacket {
   float    alt_m;
   uint8_t  sats;
   uint8_t  fixValid;
+  uint8_t  battPercent;  // transmitter's own LiPo charge estimate, 0-100
 };
 #pragma pack(pop)
 
@@ -243,6 +257,41 @@ void handleLoraPacket() {
 }
 
 // ---------------------------------------------------------------------
+// Battery
+// ---------------------------------------------------------------------
+// Two battery readings show up on screen: the transmitter's, which hitches a
+// ride in every LoRa packet since it has no display of its own to show it on;
+// and this receiver's own, which needs no radio at all - it's read straight
+// off this board's own sense pins, refreshed every OLED update.
+
+float readOwnBatteryVoltage() {
+  pinMode(VBAT_CTRL_PIN, OUTPUT);
+  digitalWrite(VBAT_CTRL_PIN, LOW);
+  delay(5);
+  float vbat = analogRead(VBAT_ADC_PIN) / 238.7;
+  pinMode(VBAT_CTRL_PIN, INPUT); // pulled up, no need to drive it
+  return vbat;
+}
+
+// Same piecewise LiPo curve as the transmitter uses - see that sketch for
+// why it's not a straight line. Kept as a duplicate here (rather than a
+// shared file) since both sketches are meant to be self-contained.
+uint8_t batteryPercentFromVoltage(float v) {
+  static const float voltage[] = {3.00, 3.50, 3.60, 3.70, 3.75, 3.80, 3.85, 3.90, 3.95, 4.00, 4.10, 4.20};
+  static const float percent[] = {0,    5,    10,   20,   30,   40,   50,   60,   70,   80,   90,   100};
+  const int n = sizeof(voltage) / sizeof(voltage[0]);
+  if (v <= voltage[0])     return 0;
+  if (v >= voltage[n - 1]) return 100;
+  for (int i = 0; i < n - 1; i++) {
+    if (v <= voltage[i + 1]) {
+      float frac = (v - voltage[i]) / (voltage[i + 1] - voltage[i]);
+      return (uint8_t)(percent[i] + frac * (percent[i + 1] - percent[i]));
+    }
+  }
+  return 0;
+}
+
+// ---------------------------------------------------------------------
 // Power button (PRG)
 // ---------------------------------------------------------------------
 // No physical power switch on this board - instead, holding the top PRG
@@ -330,8 +379,17 @@ void drawStatus() {
   snprintf(line, sizeof(line), "AP: %s", AP_SSID);
   u8g2.drawStr(0, 9, line);
 
-  IPAddress ip = WiFi.softAPIP();
-  snprintf(line, sizeof(line), "http://%d.%d.%d.%d", ip[0], ip[1], ip[2], ip[3]);
+  // Battery line replaces the old static IP display - the AP's IP is always
+  // the standard ESP32 default (http://192.168.4.1, documented in the setup
+  // guide), so it's not worth a whole row versus live battery telemetry.
+  uint8_t rxBatt = batteryPercentFromVoltage(readOwnBatteryVoltage());
+  if (haveEverReceived) {
+    snprintf(line, sizeof(line), "TX:%d%%%s RX:%d%%%s",
+             lastPacket.battPercent, lastPacket.battPercent < LOW_BATTERY_PERCENT ? "!" : "",
+             rxBatt, rxBatt < LOW_BATTERY_PERCENT ? "!" : "");
+  } else {
+    snprintf(line, sizeof(line), "TX:--%% RX:%d%%%s", rxBatt, rxBatt < LOW_BATTERY_PERCENT ? "!" : "");
+  }
   u8g2.drawStr(0, 19, line);
 
   if (!haveEverReceived) {
@@ -383,6 +441,20 @@ void handleRoot() {
           "</style></head><body>";
 
   html += "<h2>Rocket Tracker</h2>";
+
+  // Battery status shows even before any packet has arrived, since the
+  // receiver's own reading needs no radio at all.
+  uint8_t rxBatt = batteryPercentFromVoltage(readOwnBatteryVoltage());
+  char battBuf[64];
+  if (haveEverReceived) {
+    snprintf(battBuf, sizeof(battBuf), "Battery - TX: %d%% | RX: %d%%",
+             lastPacket.battPercent, rxBatt);
+  } else {
+    snprintf(battBuf, sizeof(battBuf), "Battery - TX: -- | RX: %d%%", rxBatt);
+  }
+  bool anyLowBattery = (haveEverReceived && lastPacket.battPercent < LOW_BATTERY_PERCENT)
+                        || rxBatt < LOW_BATTERY_PERCENT;
+  html += "<p class='stat" + String(anyLowBattery ? " stale" : "") + "'>" + String(battBuf) + "</p>";
 
   if (!haveEverReceived) {
     html += "<p class='stat'>No signal received yet.</p>";

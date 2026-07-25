@@ -17,13 +17,14 @@
   ------------------------------------------------------------------------
 
   PACKET FORMAT (must match the receiver sketch exactly):
-    uint32_t seq        - increments every packet, lets receiver detect drops
-    float    lat        - degrees
-    float    lon        - degrees
-    float    alt_m      - meters
-    uint8_t  sats       - number of satellites used in fix
-    uint8_t  fixValid   - 1 = GPS has a valid fix this packet, 0 = no fix yet
-  Total size: 18 bytes - small on purpose to keep airtime (and power draw) low.
+    uint32_t seq         - increments every packet, lets receiver detect drops
+    float    lat         - degrees
+    float    lon         - degrees
+    float    alt_m       - meters
+    uint8_t  sats        - number of satellites used in fix
+    uint8_t  fixValid    - 1 = GPS has a valid fix this packet, 0 = no fix yet
+    uint8_t  battPercent - this board's own LiPo charge estimate, 0-100
+  Total size: 19 bytes - small on purpose to keep airtime (and power draw) low.
 */
 
 #include <RadioLib.h>
@@ -55,6 +56,11 @@
 #define GPS_SERIAL   Serial1
 #define GPS_BAUD     9600
 
+// The Feather M0 has a built-in resistor divider on the LiPo's BAT line,
+// wired to this analog pin - see Adafruit's "Power Management" guide for
+// this board. Reading it tells you the battery level with no extra hardware.
+#define VBAT_PIN A7
+
 // ---------------------------------------------------------------------
 
 #pragma pack(push, 1)
@@ -65,6 +71,7 @@ struct RocketPacket {
   float    alt_m;
   uint8_t  sats;
   uint8_t  fixValid;
+  uint8_t  battPercent;
 };
 #pragma pack(pop)
 
@@ -73,6 +80,40 @@ TinyGPSPlus gps;
 
 uint32_t txSeq = 0;
 uint32_t lastTxMillis = 0;
+
+// ---------------------------------------------------------------------
+// Battery
+// ---------------------------------------------------------------------
+
+// Straight from Adafruit's Feather M0 "Power Management" guide: the BAT line
+// is divided by 2 before it reaches this pin, and the SAMD21's ADC here is
+// 10-bit (0-1023) by default, so this reconstructs the real battery voltage.
+float readBatteryVoltage() {
+  float measured = analogRead(VBAT_PIN);
+  measured *= 2;    // undo the onboard divide-by-2
+  measured *= 3.3;  // reference voltage
+  measured /= 1024; // 10-bit ADC
+  return measured;
+}
+
+// Rough single-cell LiPo state-of-charge estimate from voltage. The discharge
+// curve is nonlinear (it sags fast under ~3.7V), so this is a piecewise
+// approximation, not a lab-grade fuel gauge - good enough to answer "is there
+// plenty of charge for this flight," not precise enough for "42% remaining."
+uint8_t batteryPercentFromVoltage(float v) {
+  static const float voltage[] = {3.00, 3.50, 3.60, 3.70, 3.75, 3.80, 3.85, 3.90, 3.95, 4.00, 4.10, 4.20};
+  static const float percent[] = {0,    5,    10,   20,   30,   40,   50,   60,   70,   80,   90,   100};
+  const int n = sizeof(voltage) / sizeof(voltage[0]);
+  if (v <= voltage[0])     return 0;
+  if (v >= voltage[n - 1]) return 100;
+  for (int i = 0; i < n - 1; i++) {
+    if (v <= voltage[i + 1]) {
+      float frac = (v - voltage[i]) / (voltage[i + 1] - voltage[i]);
+      return (uint8_t)(percent[i] + frac * (percent[i + 1] - percent[i]));
+    }
+  }
+  return 0;
+}
 
 void blinkLed(uint8_t times, uint16_t ms) {
   for (uint8_t i = 0; i < times; i++) {
@@ -128,6 +169,7 @@ void sendPacket() {
   packet.lon = packet.fixValid ? (float)gps.location.lng() : 0.0f;
   packet.alt_m = (gps.altitude.isValid()) ? (float)gps.altitude.meters() : 0.0f;
   packet.sats = (gps.satellites.isValid()) ? (uint8_t)gps.satellites.value() : 0;
+  packet.battPercent = batteryPercentFromVoltage(readBatteryVoltage());
 
   int state = radio.transmit((uint8_t*)&packet, sizeof(packet));
 
@@ -141,7 +183,10 @@ void sendPacket() {
     Serial.print(F(" lon="));
     Serial.print(packet.lon, 6);
     Serial.print(F(" sats="));
-    Serial.println(packet.sats);
+    Serial.print(packet.sats);
+    Serial.print(F(" batt="));
+    Serial.print(packet.battPercent);
+    Serial.println(F("%"));
     blinkLed(1, 30); // quick blink = packet sent, useful for bench testing
   } else {
     Serial.print(F("Transmit failed, code "));

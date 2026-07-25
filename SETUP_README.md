@@ -70,6 +70,17 @@ GPS gives you altitude for free alongside lat/lon, so the receiver now shows it 
 
 Two honest caveats: GPS altitude is less accurate than horizontal position — commonly off by 10-15m without differential correction — so treat this as a rough estimate, not a precision altimeter reading. Also, the baseline and max height both reset if the receiver reboots, so if you're running multiple flights in a day, power-cycle the receiver right before each new launch to re-zero it.
 
+## Battery status
+
+Both boards' battery levels show up on the receiver's screen and web page, so you can check "is there plenty of charge for this flight" before you walk out to the pad:
+
+- **TX (transmitter)** — the Feather M0 measures its own LiPo voltage (built into the board, no extra hardware) and rides it along in every LoRa packet it already sends once a second. This works from the moment it powers on, even before GPS gets a fix, since it doesn't depend on GPS at all.
+- **RX (receiver)** — read straight off this board's own sense pins, no radio round-trip needed. This is why the receiver's own battery shows up immediately at boot, while the transmitter's stays at "--" until the first packet arrives.
+
+Both percentages are LiPo voltage estimates (single-cell, nonlinear discharge curve), not lab-grade fuel gauges — treat them as "plenty," "getting low," or "charge before flying," not a precise number. Either reading below 20% shows a "!" next to it on the OLED and highlights red on the web page.
+
+One-way radio, so this doesn't require sending anything back to the transmitter — the receiver's own battery never needed the radio in the first place, and the transmitter's just needed one extra byte tacked onto the packet it was already sending.
+
 ## Power (receiver)
 
 The receiver has no physical power switch, but it does have two buttons, and only one of them is usable for this:
@@ -90,15 +101,16 @@ Use PRG to put the receiver to sleep whenever it's not in use, so the battery is
 
 ## Packet format (for reference, if you want to extend this later)
 
-Both sketches share this 18-byte struct — keep them in sync if you add fields:
+Both sketches share this 19-byte struct — keep them in sync if you add fields:
 
 ```c
 struct RocketPacket {
-  uint32_t seq;       // increments every packet
+  uint32_t seq;          // increments every packet
   float    lat;
   float    lon;
   float    alt_m;
   uint8_t  sats;
-  uint8_t  fixValid;  // 1 = GPS fix valid, 0 = no fix yet
+  uint8_t  fixValid;     // 1 = GPS fix valid, 0 = no fix yet
+  uint8_t  battPercent;  // transmitter's own battery estimate, 0-100
 };
 ```
