@@ -1,5 +1,7 @@
 /*
   ROCKET TRACKER - RECEIVER
+  Version: v1 (2026-07-25) - bump this and the date whenever you change this
+           file, so you can tell at a glance which copy is open.
   Board:  Meshnology N30 (ESP32-S3 + SX1262, Heltec WiFi LoRa 32 V3 architecture)
   Role:   Handheld unit. Listens for LoRa packets from the rocket, shows the
           latest fix (plus height above the pad and max height reached) on
