@@ -68,7 +68,9 @@ GPS gives you altitude for free alongside lat/lon, so the receiver now shows it 
 
 **This means the transmitter needs to be powered on while the rocket is already sitting on the pad, before launch** — that's the moment its GPS altitude becomes the "zero" baseline. Both the OLED and the web page show "H:" (height above pad) and "Max:" once a baseline is set; before that, they fall back to showing raw MSL altitude.
 
-Two honest caveats: GPS altitude is less accurate than horizontal position — commonly off by 10-15m without differential correction — so treat this as a rough estimate, not a precision altimeter reading. Also, the baseline and max height both reset if the receiver reboots, so if you're running multiple flights in a day, power-cycle the receiver right before each new launch to re-zero it.
+Two honest caveats: GPS altitude is less accurate than horizontal position — commonly off by 30-50 feet without differential correction — so treat this as a rough estimate, not a precision altimeter reading. Also, the baseline and max height both reset if the receiver reboots, so if you're running multiple flights in a day, power-cycle the receiver right before each new launch to re-zero it.
+
+Everything shown to you — on the OLED, the web page, and in this guide — is in feet. Internally the GPS and the radio packet still use meters (that's what GPS hardware natively reports), the conversion just happens once, right before anything gets displayed.
 
 ## Battery status
 

@@ -99,6 +99,9 @@
 // Batteries below this we flag with "!" on-screen, same as stale GPS data.
 #define LOW_BATTERY_PERCENT 20
 
+// GPS gives altitude in meters; everything shown to the user is feet instead.
+#define METERS_TO_FEET 3.28084f
+
 // ---------------------------------------------------------------------
 
 #pragma pack(push, 1)
@@ -140,8 +143,15 @@ float baselineAltM = 0.0f;
 float maxHeightAboveGroundM = 0.0f;
 
 // GPS altitude typically has more error than horizontal position (commonly
-// +/-10-15m without differential correction) - treat this as a rough
+// +/-30-50 feet without differential correction) - treat this as a rough
 // estimate, not a precise altimeter reading.
+
+// All internal math stays in meters (what the GPS actually reports, and
+// what's on the wire in RocketPacket) - this is the only place it becomes
+// feet, right at the point of display.
+float metersToFeet(float m) {
+  return m * METERS_TO_FEET;
+}
 
 void setup() {
   Serial.begin(115200);
@@ -413,9 +423,10 @@ void drawStatus() {
 
     if (haveAltBaseline) {
       float heightAboveGround = lastPacket.alt_m - baselineAltM;
-      snprintf(line, sizeof(line), "H:%.0fm Max:%.0fm", heightAboveGround, maxHeightAboveGroundM);
+      snprintf(line, sizeof(line), "H:%.0fft Max:%.0fft",
+               metersToFeet(heightAboveGround), metersToFeet(maxHeightAboveGroundM));
     } else {
-      snprintf(line, sizeof(line), "Alt(MSL): %.0fm", lastPacket.alt_m);
+      snprintf(line, sizeof(line), "Alt(MSL): %.0fft", metersToFeet(lastPacket.alt_m));
     }
     u8g2.drawStr(0, 64, line);
   }
@@ -472,10 +483,10 @@ void handleRoot() {
 
     if (haveAltBaseline) {
       float heightAboveGround = lastPacket.alt_m - baselineAltM;
-      snprintf(buf, sizeof(buf), "Height above pad: %.0fm (max: %.0fm)",
-               heightAboveGround, maxHeightAboveGroundM);
+      snprintf(buf, sizeof(buf), "Height above pad: %.0fft (max: %.0fft)",
+               metersToFeet(heightAboveGround), metersToFeet(maxHeightAboveGroundM));
     } else {
-      snprintf(buf, sizeof(buf), "Altitude (MSL): %.0fm", lastPacket.alt_m);
+      snprintf(buf, sizeof(buf), "Altitude (MSL): %.0fft", metersToFeet(lastPacket.alt_m));
     }
     html += "<p class='stat'>" + String(buf) + "</p>";
 
