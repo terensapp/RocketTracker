@@ -406,7 +406,24 @@ void drawStatus() {
   // Battery line replaces the old static IP display - the AP's IP is always
   // the standard ESP32 default (http://192.168.4.1, documented in the setup
   // guide), so it's not worth a whole row versus live battery telemetry.
-  uint8_t rxBatt = batteryPercentFromVoltage(readOwnBatteryVoltage());
+  float rxBattVoltage = readOwnBatteryVoltage();
+  uint8_t rxBatt = batteryPercentFromVoltage(rxBattVoltage);
+
+  // Diagnostic: raw voltage, not just the percent, printed every few seconds.
+  // If the percent ever looks wrong, this is what tells you whether it's a
+  // dead/unplugged battery (near 0V), a pin/wiring problem (reads exactly
+  // 0.00V no matter what's connected), or just a calibration mismatch on
+  // this clone board (reads a plausible but off voltage).
+  static uint32_t lastBattDebugPrint = 0;
+  if (millis() - lastBattDebugPrint > 5000) {
+    lastBattDebugPrint = millis();
+    Serial.print(F("RX battery raw: "));
+    Serial.print(rxBattVoltage, 2);
+    Serial.print(F("V -> "));
+    Serial.print(rxBatt);
+    Serial.println(F("%"));
+  }
+
   if (haveEverReceived) {
     snprintf(line, sizeof(line), "TX:%d%%%s RX:%d%%%s",
              lastPacket.battPercent, lastPacket.battPercent < LOW_BATTERY_PERCENT ? "!" : "",
