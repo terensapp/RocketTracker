@@ -1,6 +1,6 @@
 /*
   ROCKET TRACKER - RECEIVER
-  Version: v1 (2026-07-25) - bump this and the date whenever you change this
+  Version: v2 (2026-07-25) - bump this and the date whenever you change this
            file, so you can tell at a glance which copy is open.
   Board:  Meshnology N30 (ESP32-S3 + SX1262, Heltec WiFi LoRa 32 V3 architecture)
   Role:   Handheld unit. Listens for LoRa packets from the rocket, shows the
@@ -168,6 +168,13 @@ void setup() {
   Serial.println(F(__TIME__));
 
   pinMode(PRG_BUTTON_PIN, INPUT_PULLUP);
+
+  // Set these explicitly rather than trusting the core's defaults - a
+  // missing analogReadResolution(12) call is a common cause of the battery
+  // ADC reading a flat 0.00V on this board family, clone or genuine.
+  analogReadResolution(12);
+  analogSetPinAttenuation(VBAT_ADC_PIN, ADC_11db);
+
   if (esp_sleep_get_wakeup_cause() == ESP_SLEEP_WAKEUP_EXT0) {
     Serial.println(F("Woke up from sleep (PRG button press)."));
   }
@@ -283,11 +290,18 @@ void handleLoraPacket() {
 // and this receiver's own, which needs no radio at all - it's read straight
 // off this board's own sense pins, refreshed every OLED update.
 
+// Stashed by readOwnBatteryVoltage() purely for diagnostics - the raw ADC
+// count (0-4095) is what actually distinguishes "no battery connected" or
+// "wrong/unconnected pin" (reads ~0 counts) from "calibration is just off"
+// (reads a real but wrong-scaled count).
+int lastRawVbatAdc = 0;
+
 float readOwnBatteryVoltage() {
   pinMode(VBAT_CTRL_PIN, OUTPUT);
   digitalWrite(VBAT_CTRL_PIN, LOW);
   delay(5);
-  float vbat = analogRead(VBAT_ADC_PIN) / 238.7;
+  lastRawVbatAdc = analogRead(VBAT_ADC_PIN);
+  float vbat = lastRawVbatAdc / 238.7;
   pinMode(VBAT_CTRL_PIN, INPUT); // pulled up, no need to drive it
   return vbat;
 }
@@ -420,6 +434,8 @@ void drawStatus() {
   if (millis() - lastBattDebugPrint > 5000) {
     lastBattDebugPrint = millis();
     Serial.print(F("RX battery raw: "));
+    Serial.print(lastRawVbatAdc);
+    Serial.print(F(" ADC counts -> "));
     Serial.print(rxBattVoltage, 2);
     Serial.print(F("V -> "));
     Serial.print(rxBatt);
