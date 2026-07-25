@@ -1,6 +1,6 @@
 /*
   ROCKET TRACKER - RECEIVER
-  Version: v2 (2026-07-25) - bump this and the date whenever you change this
+  Version: v3 (2026-07-25) - bump this and the date whenever you change this
            file, so you can tell at a glance which copy is open.
   Board:  Meshnology N30 (ESP32-S3 + SX1262, Heltec WiFi LoRa 32 V3 architecture)
   Role:   Handheld unit. Listens for LoRa packets from the rocket, shows the
@@ -175,6 +175,12 @@ void setup() {
   analogReadResolution(12);
   analogSetPinAttenuation(VBAT_ADC_PIN, ADC_11db);
 
+  // Enable the battery-sense divider once, here, and leave it enabled for
+  // the rest of normal operation - see the comment on readOwnBatteryVoltage()
+  // for why. goToSleep() releases this pin before actually sleeping.
+  pinMode(VBAT_CTRL_PIN, OUTPUT);
+  digitalWrite(VBAT_CTRL_PIN, LOW);
+
   if (esp_sleep_get_wakeup_cause() == ESP_SLEEP_WAKEUP_EXT0) {
     Serial.println(F("Woke up from sleep (PRG button press)."));
   }
@@ -296,14 +302,22 @@ void handleLoraPacket() {
 // (reads a real but wrong-scaled count).
 int lastRawVbatAdc = 0;
 
+// Multiple Heltec WiFi LoRa 32 V3 owners on Heltec's own community forum hit
+// this exact "reads flat 0.00V" issue with the official library's approach
+// of toggling VBAT_CTRL_PIN OUTPUT-LOW then back to INPUT around every single
+// read. The community-verified fix (confirmed by several independent users,
+// see community.heltec.cn thread 12646) is to drive VBAT_CTRL_PIN low once
+// in setup() and leave it there, rather than re-toggling it each time - so
+// that's what this does. It also averages several samples, since a single
+// analogRead() on this pin is reported as noisy on this board.
 float readOwnBatteryVoltage() {
-  pinMode(VBAT_CTRL_PIN, OUTPUT);
-  digitalWrite(VBAT_CTRL_PIN, LOW);
-  delay(5);
-  lastRawVbatAdc = analogRead(VBAT_ADC_PIN);
-  float vbat = lastRawVbatAdc / 238.7;
-  pinMode(VBAT_CTRL_PIN, INPUT); // pulled up, no need to drive it
-  return vbat;
+  const int samples = 20;
+  uint32_t total = 0;
+  for (int i = 0; i < samples; i++) {
+    total += analogRead(VBAT_ADC_PIN);
+  }
+  lastRawVbatAdc = total / samples;
+  return lastRawVbatAdc / 238.7;
 }
 
 // Same piecewise LiPo curve as the transmitter uses - see that sketch for
@@ -375,6 +389,11 @@ void goToSleep() {
   // MOSFET off. This is the same approach the board's official support
   // library uses for this exact rail.
   pinMode(VEXT_CTRL, INPUT);
+
+  // Also release the battery-sense divider (enabled permanently in setup(),
+  // see readOwnBatteryVoltage()) so it isn't quietly drawing current the
+  // whole time the board is asleep.
+  pinMode(VBAT_CTRL_PIN, INPUT);
 
   esp_sleep_enable_ext0_wakeup((gpio_num_t)PRG_BUTTON_PIN, 0); // wake on LOW
   esp_deep_sleep_start();
