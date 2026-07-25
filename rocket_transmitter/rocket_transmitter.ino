@@ -133,6 +133,13 @@ void setup() {
   while (!Serial && millis() - serialWaitStart < 3000) { delay(10); }
 
   Serial.println(F("Rocket transmitter booting..."));
+  // __DATE__/__TIME__ are filled in by the compiler at build time, so this
+  // always reflects the actual firmware running on the board - no manual
+  // version number to remember to bump before every upload.
+  Serial.print(F("Firmware built: "));
+  Serial.print(F(__DATE__));
+  Serial.print(F(" "));
+  Serial.println(F(__TIME__));
 
   GPS_SERIAL.begin(GPS_BAUD);
 

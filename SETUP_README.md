@@ -92,6 +92,10 @@ The receiver has no physical power switch, but it does have two buttons, and onl
 
 Use PRG to put the receiver to sleep whenever it's not in use, so the battery isn't draining on the shelf between launches. The transmitter doesn't have this option - it needs a physical inline switch or battery disconnect if you want to store it powered off, since the Feather M0 only has a hard reset button.
 
+## Confirming what's actually flashed
+
+Both sketches print a firmware build date/time to Serial Monitor at boot ("Firmware built: Jul 25 2026 14:32:10"), filled in automatically by the compiler at upload time - no version number to remember to bump. The receiver also shows the build date on its OLED splash screen for a few seconds at boot, so you can confirm you flashed today's version without needing a laptop plugged in.
+
 ## Things to double-check / likely friction points
 
 - **Pin mapping on the receiver.** The code uses the standard Heltec WiFi LoRa 32 V3 pin layout (LoRa on SPI pins 8–14, OLED on I2C pins 17/18, Vext power-gate on pin 36). The Meshnology N30 is built on that same architecture, but since it's a clone, cross-check against the pinout diagram on the product listing before your first flash. If the OLED stays blank or the radio fails to initialize, this is the first place to look.

@@ -157,6 +157,13 @@ void setup() {
   Serial.begin(115200);
   delay(200);
   Serial.println(F("Rocket receiver booting..."));
+  // __DATE__/__TIME__ are filled in by the compiler at build time, so this
+  // always reflects the actual firmware running on the board - no manual
+  // version number to remember to bump before every upload.
+  Serial.print(F("Firmware built: "));
+  Serial.print(F(__DATE__));
+  Serial.print(F(" "));
+  Serial.println(F(__TIME__));
 
   pinMode(PRG_BUTTON_PIN, INPUT_PULLUP);
   if (esp_sleep_get_wakeup_cause() == ESP_SLEEP_WAKEUP_EXT0) {
@@ -369,6 +376,13 @@ void drawSplash() {
   u8g2.drawStr(0, 10, "Rocket Tracker");
   u8g2.drawStr(0, 24, "Starting radio...");
   u8g2.drawStr(0, 44, "Hold PRG 1s: sleep");
+
+  // Build date so you can glance at the screen and confirm this is the
+  // firmware you meant to flash, without needing a serial monitor attached.
+  char buildLine[24];
+  snprintf(buildLine, sizeof(buildLine), "Built %s", __DATE__);
+  u8g2.drawStr(0, 58, buildLine);
+
   u8g2.sendBuffer();
 }
 
