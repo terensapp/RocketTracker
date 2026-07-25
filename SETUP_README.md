@@ -70,6 +70,15 @@ GPS gives you altitude for free alongside lat/lon, so the receiver now shows it 
 
 Two honest caveats: GPS altitude is less accurate than horizontal position — commonly off by 10-15m without differential correction — so treat this as a rough estimate, not a precision altimeter reading. Also, the baseline and max height both reset if the receiver reboots, so if you're running multiple flights in a day, power-cycle the receiver right before each new launch to re-zero it.
 
+## Power (receiver)
+
+The receiver has no physical power switch, but it does have two buttons, and only one of them is usable for this:
+
+- **PRG (top button)** is wired to a real GPIO (GPIO0). Hold it for 1 second and the receiver shows "Powering down..." then drops into deep sleep - LoRa radio, OLED, and WiFi hotspot all powered down to a few microamps. Press PRG again and it wakes up with a full reboot, same as a fresh power-on.
+- **Reset (bottom button)** is hardwired straight to the chip's reset line in hardware. It never passes through your code, so it can only ever do an instant hard reboot - it can't be used as a sleep/wake button.
+
+Use PRG to put the receiver to sleep whenever it's not in use, so the battery isn't draining on the shelf between launches. The transmitter doesn't have this option - it needs a physical inline switch or battery disconnect if you want to store it powered off, since the Feather M0 only has a hard reset button.
+
 ## Things to double-check / likely friction points
 
 - **Pin mapping on the receiver.** The code uses the standard Heltec WiFi LoRa 32 V3 pin layout (LoRa on SPI pins 8–14, OLED on I2C pins 17/18, Vext power-gate on pin 36). The Meshnology N30 is built on that same architecture, but since it's a clone, cross-check against the pinout diagram on the product listing before your first flash. If the OLED stays blank or the radio fails to initialize, this is the first place to look.

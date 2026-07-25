@@ -36,6 +36,7 @@
 #include <Wire.h>
 #include <WiFi.h>
 #include <WebServer.h>
+#include "esp_sleep.h"
 
 // ---------------------------------------------------------------------
 // CONFIGURE ME
@@ -75,6 +76,15 @@
 
 // If no packet arrives for this long, the web page/OLED will flag the data as stale
 #define STALE_AFTER_MS 15000
+
+// There's no physical power switch on this board, but the top "PRG" button
+// is wired to a real, readable GPIO - GPIO0, confirmed against the Heltec
+// WiFi LoRa 32 V3 reference library, since this board shares that pinout.
+// The BOTTOM "Reset" button is different: it's hardwired straight to the
+// chip's reset line in hardware and never passes through your code, so it
+// can only ever do an instant hard reboot - it can't be used for this.
+#define PRG_BUTTON_PIN 0
+#define SLEEP_HOLD_MS  1000   // how long to hold PRG to trigger sleep
 
 // ---------------------------------------------------------------------
 
@@ -124,6 +134,11 @@ void setup() {
   delay(200);
   Serial.println(F("Rocket receiver booting..."));
 
+  pinMode(PRG_BUTTON_PIN, INPUT_PULLUP);
+  if (esp_sleep_get_wakeup_cause() == ESP_SLEEP_WAKEUP_EXT0) {
+    Serial.println(F("Woke up from sleep (PRG button press)."));
+  }
+
   // Power up the OLED / Vext rail (see comment above VEXT_CTRL)
   pinMode(VEXT_CTRL, OUTPUT);
   digitalWrite(VEXT_CTRL, LOW);
@@ -134,6 +149,7 @@ void setup() {
   // separate Wire.begin() call needed here.
   u8g2.begin();
   drawSplash();
+  delay(1500); // hold the splash (and its "hold PRG to sleep" hint) long enough to read
 
   // LoRa radio needs its own SPI pins configured explicitly on this board
   SPI.begin(LORA_SCK, LORA_MISO, LORA_MOSI, LORA_CS);
@@ -164,6 +180,7 @@ void setup() {
 }
 
 void loop() {
+  checkSleepButton();
   server.handleClient();
 
   if (loraFlag) {
@@ -226,6 +243,64 @@ void handleLoraPacket() {
 }
 
 // ---------------------------------------------------------------------
+// Power button (PRG)
+// ---------------------------------------------------------------------
+// No physical power switch on this board - instead, holding the top PRG
+// button for a second puts the ESP32 into deep sleep: LoRa radio, OLED, and
+// WiFi radio all powered down to a few microamps (versus tens of mA while
+// running), which is the difference between the battery lasting weeks on
+// the shelf versus days. Pressing PRG again wakes it with a full reboot -
+// same as flipping a power switch back on, just without a switch to buy.
+uint32_t buttonPressStartMillis = 0;
+
+void checkSleepButton() {
+  bool pressed = (digitalRead(PRG_BUTTON_PIN) == LOW);
+
+  if (pressed && buttonPressStartMillis == 0) {
+    buttonPressStartMillis = millis();
+  } else if (!pressed) {
+    buttonPressStartMillis = 0;
+  }
+
+  if (pressed && buttonPressStartMillis != 0 &&
+      millis() - buttonPressStartMillis >= SLEEP_HOLD_MS) {
+    goToSleep();
+  }
+}
+
+void goToSleep() {
+  u8g2.clearBuffer();
+  u8g2.setFont(u8g2_font_6x10_tf);
+  u8g2.drawStr(0, 10, "Powering down...");
+  u8g2.drawStr(0, 24, "Press PRG to wake");
+  u8g2.sendBuffer();
+
+  // Wait for release - the wakeup source armed below triggers on the pin
+  // going LOW, which it still is right now while the button is held.
+  // Without this, the board would deep-sleep and instantly wake back up.
+  while (digitalRead(PRG_BUTTON_PIN) == LOW) {
+    delay(10);
+  }
+  delay(200); // debounce
+
+  WiFi.softAPdisconnect(true);
+  WiFi.mode(WIFI_OFF);
+  radio.sleep();        // put the LoRa radio in its own low-power sleep mode
+  u8g2.setPowerSave(1);  // turn the OLED panel off
+
+  // Cut power to the OLED (and anything else on the Vext rail): let the pin
+  // float, the board's own pull-up holds it high, which switches the Vext
+  // MOSFET off. This is the same approach the board's official support
+  // library uses for this exact rail.
+  pinMode(VEXT_CTRL, INPUT);
+
+  esp_sleep_enable_ext0_wakeup((gpio_num_t)PRG_BUTTON_PIN, 0); // wake on LOW
+  esp_deep_sleep_start();
+  // Execution never reaches here - waking from deep sleep restarts the chip
+  // from scratch, same as setup() running after a fresh power-on.
+}
+
+// ---------------------------------------------------------------------
 // OLED
 // ---------------------------------------------------------------------
 
@@ -234,6 +309,7 @@ void drawSplash() {
   u8g2.setFont(u8g2_font_6x10_tf);
   u8g2.drawStr(0, 10, "Rocket Tracker");
   u8g2.drawStr(0, 24, "Starting radio...");
+  u8g2.drawStr(0, 44, "Hold PRG 1s: sleep");
   u8g2.sendBuffer();
 }
 
