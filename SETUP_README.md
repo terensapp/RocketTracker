@@ -83,6 +83,8 @@ Both percentages are LiPo voltage estimates (single-cell, nonlinear discharge cu
 
 One-way radio, so this doesn't require sending anything back to the transmitter — the receiver's own battery never needed the radio in the first place, and the transmitter's just needed one extra byte tacked onto the packet it was already sending.
 
+**Known limitation, confirmed by multimeter on a real N30 unit:** the receiver's own ("RX") battery reading doesn't work on every N30 board. On at least one confirmed unit, the GPIO pin this relies on measures a flat 0V directly at the pin even with a fully-charged, healthy battery connected — the sense signal just isn't wired through to that pin on this board, and no firmware fix can work around that. If yours shows "RX: n/a" instead of a percentage, that's this — not a bug, and not a sign of a dead battery. Check the battery itself with a multimeter if you want to be sure (a single-cell LiPo reads roughly 3.7-4.2V when healthy). TX battery reporting is unaffected either way, since it's a completely different board and mechanism.
+
 ## Power (receiver)
 
 The receiver has no physical power switch, but it does have two buttons, and only one of them is usable for this:

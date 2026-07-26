@@ -1,6 +1,6 @@
 /*
   ROCKET TRACKER - RECEIVER
-  Version: v4 (2026-07-25) - bump this and the date whenever you change this
+  Version: v5 (2026-07-25) - bump this and the date whenever you change this
            file, so you can tell at a glance which copy is open.
   Board:  Meshnology N30 (ESP32-S3 + SX1262, Heltec WiFi LoRa 32 V3 architecture)
   Role:   Handheld unit. Listens for LoRa packets from the rocket, shows the
@@ -310,6 +310,14 @@ int lastRawVbatAdc = 0;
 // in setup() and leave it there, rather than re-toggling it each time - so
 // that's what this does. It also averages several samples, since a single
 // analogRead() on this pin is reported as noisy on this board.
+//
+// CONFIRMED on this specific Meshnology N30 unit (multimeter-verified): this
+// fix did NOT resolve it. GPIO1 measures a hard 0V directly at the pin even
+// with a healthy 4.1V battery connected - the sense signal simply isn't
+// reaching that pin on this board, which no firmware change can work around.
+// RX battery reporting is expected to show "n/a" on this hardware; that's
+// correct, not a bug. TX battery reporting is unaffected (Feather M0, an
+// entirely separate and unrelated mechanism).
 float readOwnBatteryVoltage() {
   const int samples = 20;
   uint32_t total = 0;
