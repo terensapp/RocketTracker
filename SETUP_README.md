@@ -74,16 +74,11 @@ Everything shown to you — on the OLED, the web page, and in this guide — is 
 
 ## Battery status
 
-Both boards' battery levels show up on the receiver's screen and web page, so you can check "is there plenty of charge for this flight" before you walk out to the pad:
+The transmitter's battery level shows up on the receiver's screen and web page ("TX Batt: 82%"), so you can check "is there plenty of charge for this flight" before you walk out to the pad. The Feather M0 measures its own LiPo voltage (built into the board, no extra hardware) and rides it along in every LoRa packet it already sends once a second — this works from the moment it powers on, even before GPS gets a fix, since it doesn't depend on GPS at all.
 
-- **TX (transmitter)** — the Feather M0 measures its own LiPo voltage (built into the board, no extra hardware) and rides it along in every LoRa packet it already sends once a second. This works from the moment it powers on, even before GPS gets a fix, since it doesn't depend on GPS at all.
-- **RX (receiver)** — read straight off this board's own sense pins, no radio round-trip needed. This is why the receiver's own battery shows up immediately at boot, while the transmitter's stays at "--" until the first packet arrives.
+This is a LiPo voltage estimate (single-cell, nonlinear discharge curve), not a lab-grade fuel gauge — treat it as "plenty," "getting low," or "charge before flying," not a precise number. A reading below 20% shows a "!" next to it on the OLED and highlights red on the web page.
 
-Both percentages are LiPo voltage estimates (single-cell, nonlinear discharge curve), not lab-grade fuel gauges — treat them as "plenty," "getting low," or "charge before flying," not a precise number. Either reading below 20% shows a "!" next to it on the OLED and highlights red on the web page.
-
-One-way radio, so this doesn't require sending anything back to the transmitter — the receiver's own battery never needed the radio in the first place, and the transmitter's just needed one extra byte tacked onto the packet it was already sending.
-
-**Known limitation, confirmed by multimeter on a real N30 unit:** the receiver's own ("RX") battery reading doesn't work on every N30 board. On at least one confirmed unit, the GPIO pin this relies on measures a flat 0V directly at the pin even with a fully-charged, healthy battery connected — the sense signal just isn't wired through to that pin on this board, and no firmware fix can work around that. If yours shows "RX: n/a" instead of a percentage, that's this — not a bug, and not a sign of a dead battery. Check the battery itself with a multimeter if you want to be sure (a single-cell LiPo reads roughly 3.7-4.2V when healthy). TX battery reporting is unaffected either way, since it's a completely different board and mechanism.
+There's no equivalent reading for the receiver's own battery. That was tried (reading the ESP32-S3's own battery-sense pin locally, no radio needed) and removed: on a real N30 unit, that pin measured a flat 0V on a multimeter even with a fully-charged, healthy battery connected — the sense signal simply isn't wired through to that pin on this board, and no firmware fix could work around it. If you want to check the receiver's own battery, a multimeter across the JST connector is the reliable way (a healthy single-cell LiPo reads roughly 3.7-4.2V).
 
 ## Power (receiver)
 
@@ -96,7 +91,12 @@ Use PRG to put the receiver to sleep whenever it's not in use, so the battery is
 
 ## Confirming what's actually flashed
 
-Both sketches print a firmware build date/time to Serial Monitor at boot ("Firmware built: Jul 25 2026 14:32:10"), filled in automatically by the compiler at upload time - no version number to remember to bump. The receiver also shows the build date on its OLED splash screen for a few seconds at boot, so you can confirm you flashed today's version without needing a laptop plugged in.
+Two different timestamps, two different jobs:
+
+- **The `Version:` line at the top of each `.ino` file** is stamped with when the source was actually last pushed (e.g. "pushed 2026-07-26 03:07 UTC"), visible the instant you open the file in the editor - no compiling needed. This is "when was this code actually written," which matters if you write code and don't get around to flashing it until hours or days later.
+- **"Firmware built: Jul 25 2026 14:32:10"**, printed to Serial Monitor at boot and filled in automatically by the compiler, is "when was THIS PARTICULAR UPLOAD compiled" - i.e., what's actually running on the board right now. The receiver also shows its build date on the OLED splash screen for a few seconds at boot, so you can confirm it without a laptop plugged in.
+
+If those two ever disagree by more than a few minutes, it means you edited the source after the last time you compiled and flashed - a nudge to re-upload before you trust what's on the board.
 
 ## Things to double-check / likely friction points
 

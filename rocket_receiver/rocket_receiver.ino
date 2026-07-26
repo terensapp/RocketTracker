@@ -1,7 +1,11 @@
 /*
   ROCKET TRACKER - RECEIVER
-  Version: v5 (2026-07-25) - bump this and the date whenever you change this
-           file, so you can tell at a glance which copy is open.
+  Version: v6 - pushed 2026-07-26 03:05 UTC. This is when the source itself
+           was last changed - update it whenever this file changes. It's
+           deliberately separate from the "Firmware built" timestamp printed
+           to Serial at boot, which only tells you when THAT PARTICULAR
+           UPLOAD was compiled - not useful if you write code and don't get
+           around to flashing it until hours (or days) later.
   Board:  Meshnology N30 (ESP32-S3 + SX1262, Heltec WiFi LoRa 32 V3 architecture)
   Role:   Handheld unit. Listens for LoRa packets from the rocket, shows the
           latest fix (plus height above the pad and max height reached) on
@@ -89,15 +93,6 @@
 #define PRG_BUTTON_PIN 0
 #define SLEEP_HOLD_MS  1000   // how long to hold PRG to trigger sleep
 
-// This board's own battery-voltage-sense pins, per the Heltec WiFi LoRa 32 V3
-// reference library this clone is built on. VBAT_CTRL enables the sense
-// divider (it's normally left floating/pulled up to save power), VBAT_ADC is
-// where you read the result. If readings look off versus a multimeter, this
-// clone's divider resistors may differ slightly - the 238.7 constant below
-// is Heltec's own calibration for the genuine board.
-#define VBAT_CTRL_PIN 37
-#define VBAT_ADC_PIN  1
-
 // Batteries below this we flag with "!" on-screen, same as stale GPS data.
 #define LOW_BATTERY_PERCENT 20
 
@@ -168,18 +163,6 @@ void setup() {
   Serial.println(F(__TIME__));
 
   pinMode(PRG_BUTTON_PIN, INPUT_PULLUP);
-
-  // Set these explicitly rather than trusting the core's defaults - a
-  // missing analogReadResolution(12) call is a common cause of the battery
-  // ADC reading a flat 0.00V on this board family, clone or genuine.
-  analogReadResolution(12);
-  analogSetPinAttenuation(VBAT_ADC_PIN, ADC_11db);
-
-  // Enable the battery-sense divider once, here, and leave it enabled for
-  // the rest of normal operation - see the comment on readOwnBatteryVoltage()
-  // for why. goToSleep() releases this pin before actually sleeping.
-  pinMode(VBAT_CTRL_PIN, OUTPUT);
-  digitalWrite(VBAT_CTRL_PIN, LOW);
 
   if (esp_sleep_get_wakeup_cause() == ESP_SLEEP_WAKEUP_EXT0) {
     Serial.println(F("Woke up from sleep (PRG button press)."));
@@ -289,64 +272,6 @@ void handleLoraPacket() {
 }
 
 // ---------------------------------------------------------------------
-// Battery
-// ---------------------------------------------------------------------
-// Two battery readings show up on screen: the transmitter's, which hitches a
-// ride in every LoRa packet since it has no display of its own to show it on;
-// and this receiver's own, which needs no radio at all - it's read straight
-// off this board's own sense pins, refreshed every OLED update.
-
-// Stashed by readOwnBatteryVoltage() purely for diagnostics - the raw ADC
-// count (0-4095) is what actually distinguishes "no battery connected" or
-// "wrong/unconnected pin" (reads ~0 counts) from "calibration is just off"
-// (reads a real but wrong-scaled count).
-int lastRawVbatAdc = 0;
-
-// Multiple Heltec WiFi LoRa 32 V3 owners on Heltec's own community forum hit
-// this exact "reads flat 0.00V" issue with the official library's approach
-// of toggling VBAT_CTRL_PIN OUTPUT-LOW then back to INPUT around every single
-// read. The community-verified fix (confirmed by several independent users,
-// see community.heltec.cn thread 12646) is to drive VBAT_CTRL_PIN low once
-// in setup() and leave it there, rather than re-toggling it each time - so
-// that's what this does. It also averages several samples, since a single
-// analogRead() on this pin is reported as noisy on this board.
-//
-// CONFIRMED on this specific Meshnology N30 unit (multimeter-verified): this
-// fix did NOT resolve it. GPIO1 measures a hard 0V directly at the pin even
-// with a healthy 4.1V battery connected - the sense signal simply isn't
-// reaching that pin on this board, which no firmware change can work around.
-// RX battery reporting is expected to show "n/a" on this hardware; that's
-// correct, not a bug. TX battery reporting is unaffected (Feather M0, an
-// entirely separate and unrelated mechanism).
-float readOwnBatteryVoltage() {
-  const int samples = 20;
-  uint32_t total = 0;
-  for (int i = 0; i < samples; i++) {
-    total += analogRead(VBAT_ADC_PIN);
-  }
-  lastRawVbatAdc = total / samples;
-  return lastRawVbatAdc / 238.7;
-}
-
-// Same piecewise LiPo curve as the transmitter uses - see that sketch for
-// why it's not a straight line. Kept as a duplicate here (rather than a
-// shared file) since both sketches are meant to be self-contained.
-uint8_t batteryPercentFromVoltage(float v) {
-  static const float voltage[] = {3.00, 3.50, 3.60, 3.70, 3.75, 3.80, 3.85, 3.90, 3.95, 4.00, 4.10, 4.20};
-  static const float percent[] = {0,    5,    10,   20,   30,   40,   50,   60,   70,   80,   90,   100};
-  const int n = sizeof(voltage) / sizeof(voltage[0]);
-  if (v <= voltage[0])     return 0;
-  if (v >= voltage[n - 1]) return 100;
-  for (int i = 0; i < n - 1; i++) {
-    if (v <= voltage[i + 1]) {
-      float frac = (v - voltage[i]) / (voltage[i + 1] - voltage[i]);
-      return (uint8_t)(percent[i] + frac * (percent[i + 1] - percent[i]));
-    }
-  }
-  return 0;
-}
-
-// ---------------------------------------------------------------------
 // Power button (PRG)
 // ---------------------------------------------------------------------
 // No physical power switch on this board - instead, holding the top PRG
@@ -398,11 +323,6 @@ void goToSleep() {
   // library uses for this exact rail.
   pinMode(VEXT_CTRL, INPUT);
 
-  // Also release the battery-sense divider (enabled permanently in setup(),
-  // see readOwnBatteryVoltage()) so it isn't quietly drawing current the
-  // whole time the board is asleep.
-  pinMode(VBAT_CTRL_PIN, INPUT);
-
   esp_sleep_enable_ext0_wakeup((gpio_num_t)PRG_BUTTON_PIN, 0); // wake on LOW
   esp_deep_sleep_start();
   // Execution never reaches here - waking from deep sleep restarts the chip
@@ -449,45 +369,14 @@ void drawStatus() {
   // Battery line replaces the old static IP display - the AP's IP is always
   // the standard ESP32 default (http://192.168.4.1, documented in the setup
   // guide), so it's not worth a whole row versus live battery telemetry.
-  float rxBattVoltage = readOwnBatteryVoltage();
-  uint8_t rxBatt = batteryPercentFromVoltage(rxBattVoltage);
-
-  // Diagnostic: raw voltage, not just the percent, printed every few seconds.
-  // If the percent ever looks wrong, this is what tells you whether it's a
-  // dead/unplugged battery (near 0V), a pin/wiring problem (reads exactly
-  // 0.00V no matter what's connected), or just a calibration mismatch on
-  // this clone board (reads a plausible but off voltage).
-  static uint32_t lastBattDebugPrint = 0;
-  if (millis() - lastBattDebugPrint > 5000) {
-    lastBattDebugPrint = millis();
-    Serial.print(F("RX battery raw: "));
-    Serial.print(lastRawVbatAdc);
-    Serial.print(F(" ADC counts -> "));
-    Serial.print(rxBattVoltage, 2);
-    Serial.print(F("V -> "));
-    Serial.print(rxBatt);
-    Serial.println(F("%"));
-  }
-
-  // A raw reading of exactly 0 ADC counts is treated as "no reading
-  // available" rather than a real 0% - a LiPo's protection circuit cuts it
-  // off well above the voltage that would produce a true zero here, so a
-  // hard 0 means the sense circuit isn't delivering a signal, not that the
-  // battery is dead. Showing "0%!" in that case would be actively
-  // misleading right before a launch.
-  bool rxBattAvailable = (lastRawVbatAdc > 0);
-  char rxPart[12];
-  if (rxBattAvailable) {
-    snprintf(rxPart, sizeof(rxPart), "RX:%d%%%s", rxBatt, rxBatt < LOW_BATTERY_PERCENT ? "!" : "");
-  } else {
-    snprintf(rxPart, sizeof(rxPart), "RX:n/a");
-  }
-
+  // Only the transmitter's battery shows here - this board's own battery
+  // sensing was tried and removed; see SETUP_README.md's "Battery status"
+  // section for why (confirmed hardware limitation on this board).
   if (haveEverReceived) {
-    snprintf(line, sizeof(line), "TX:%d%%%s %s",
-             lastPacket.battPercent, lastPacket.battPercent < LOW_BATTERY_PERCENT ? "!" : "", rxPart);
+    snprintf(line, sizeof(line), "TX Batt: %d%%%s",
+             lastPacket.battPercent, lastPacket.battPercent < LOW_BATTERY_PERCENT ? "!" : "");
   } else {
-    snprintf(line, sizeof(line), "TX:--%% %s", rxPart);
+    snprintf(line, sizeof(line), "TX Batt: --");
   }
   u8g2.drawStr(0, 19, line);
 
@@ -542,30 +431,17 @@ void handleRoot() {
 
   html += "<h2>Rocket Tracker</h2>";
 
-  // Battery status shows even before any packet has arrived, since the
-  // receiver's own reading needs no radio at all.
-  uint8_t rxBatt = batteryPercentFromVoltage(readOwnBatteryVoltage());
-
-  // A raw reading of exactly 0 ADC counts means "no reading available," not
-  // a real 0% - see the matching comment in drawStatus() for why.
-  bool rxBattAvailable = (lastRawVbatAdc > 0);
-  char rxPart[8];
-  if (rxBattAvailable) {
-    snprintf(rxPart, sizeof(rxPart), "%d%%", rxBatt);
-  } else {
-    snprintf(rxPart, sizeof(rxPart), "n/a");
-  }
-
-  char battBuf[64];
+  // Only the transmitter's battery shows here - this board's own battery
+  // sensing was tried and removed; see SETUP_README.md's "Battery status"
+  // section for why (confirmed hardware limitation on this board).
+  char battBuf[32];
   if (haveEverReceived) {
-    snprintf(battBuf, sizeof(battBuf), "Battery - TX: %d%% | RX: %s",
-             lastPacket.battPercent, rxPart);
+    snprintf(battBuf, sizeof(battBuf), "Transmitter battery: %d%%", lastPacket.battPercent);
   } else {
-    snprintf(battBuf, sizeof(battBuf), "Battery - TX: -- | RX: %s", rxPart);
+    snprintf(battBuf, sizeof(battBuf), "Transmitter battery: --");
   }
-  bool anyLowBattery = (haveEverReceived && lastPacket.battPercent < LOW_BATTERY_PERCENT)
-                        || (rxBattAvailable && rxBatt < LOW_BATTERY_PERCENT);
-  html += "<p class='stat" + String(anyLowBattery ? " stale" : "") + "'>" + String(battBuf) + "</p>";
+  bool lowBattery = haveEverReceived && lastPacket.battPercent < LOW_BATTERY_PERCENT;
+  html += "<p class='stat" + String(lowBattery ? " stale" : "") + "'>" + String(battBuf) + "</p>";
 
   if (!haveEverReceived) {
     html += "<p class='stat'>No signal received yet.</p>";

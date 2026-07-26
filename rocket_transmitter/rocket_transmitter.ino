@@ -1,7 +1,11 @@
 /*
   ROCKET TRACKER - TRANSMITTER
-  Version:  v1 (2026-07-25) - bump this and the date whenever you change
-            this file, so you can tell at a glance which copy is open.
+  Version:  v2 - pushed 2026-07-26 03:07 UTC. This is when the source itself
+            was last changed - update it whenever this file changes. It's
+            deliberately separate from the "Firmware built" timestamp printed
+            to Serial at boot, which only tells you when THAT PARTICULAR
+            UPLOAD was compiled - not useful if you write code and don't get
+            around to flashing it until hours (or days) later.
   Board:    Adafruit Feather M0 with RFM95 LoRa Radio - 900MHz (product 3178)
   Add-on:   Adafruit Ultimate GPS FeatherWing (product 3133), stacked on top
   Role:     Lives inside the rocket. Reads GPS, packs it into a small binary
