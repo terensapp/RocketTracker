@@ -1,6 +1,6 @@
 /*
   ROCKET TRACKER - RECEIVER
-  Version: v3 (2026-07-25) - bump this and the date whenever you change this
+  Version: v4 (2026-07-25) - bump this and the date whenever you change this
            file, so you can tell at a glance which copy is open.
   Board:  Meshnology N30 (ESP32-S3 + SX1262, Heltec WiFi LoRa 32 V3 architecture)
   Role:   Handheld unit. Listens for LoRa packets from the rocket, shows the
@@ -461,12 +461,25 @@ void drawStatus() {
     Serial.println(F("%"));
   }
 
-  if (haveEverReceived) {
-    snprintf(line, sizeof(line), "TX:%d%%%s RX:%d%%%s",
-             lastPacket.battPercent, lastPacket.battPercent < LOW_BATTERY_PERCENT ? "!" : "",
-             rxBatt, rxBatt < LOW_BATTERY_PERCENT ? "!" : "");
+  // A raw reading of exactly 0 ADC counts is treated as "no reading
+  // available" rather than a real 0% - a LiPo's protection circuit cuts it
+  // off well above the voltage that would produce a true zero here, so a
+  // hard 0 means the sense circuit isn't delivering a signal, not that the
+  // battery is dead. Showing "0%!" in that case would be actively
+  // misleading right before a launch.
+  bool rxBattAvailable = (lastRawVbatAdc > 0);
+  char rxPart[12];
+  if (rxBattAvailable) {
+    snprintf(rxPart, sizeof(rxPart), "RX:%d%%%s", rxBatt, rxBatt < LOW_BATTERY_PERCENT ? "!" : "");
   } else {
-    snprintf(line, sizeof(line), "TX:--%% RX:%d%%%s", rxBatt, rxBatt < LOW_BATTERY_PERCENT ? "!" : "");
+    snprintf(rxPart, sizeof(rxPart), "RX:n/a");
+  }
+
+  if (haveEverReceived) {
+    snprintf(line, sizeof(line), "TX:%d%%%s %s",
+             lastPacket.battPercent, lastPacket.battPercent < LOW_BATTERY_PERCENT ? "!" : "", rxPart);
+  } else {
+    snprintf(line, sizeof(line), "TX:--%% %s", rxPart);
   }
   u8g2.drawStr(0, 19, line);
 
@@ -524,15 +537,26 @@ void handleRoot() {
   // Battery status shows even before any packet has arrived, since the
   // receiver's own reading needs no radio at all.
   uint8_t rxBatt = batteryPercentFromVoltage(readOwnBatteryVoltage());
+
+  // A raw reading of exactly 0 ADC counts means "no reading available," not
+  // a real 0% - see the matching comment in drawStatus() for why.
+  bool rxBattAvailable = (lastRawVbatAdc > 0);
+  char rxPart[8];
+  if (rxBattAvailable) {
+    snprintf(rxPart, sizeof(rxPart), "%d%%", rxBatt);
+  } else {
+    snprintf(rxPart, sizeof(rxPart), "n/a");
+  }
+
   char battBuf[64];
   if (haveEverReceived) {
-    snprintf(battBuf, sizeof(battBuf), "Battery - TX: %d%% | RX: %d%%",
-             lastPacket.battPercent, rxBatt);
+    snprintf(battBuf, sizeof(battBuf), "Battery - TX: %d%% | RX: %s",
+             lastPacket.battPercent, rxPart);
   } else {
-    snprintf(battBuf, sizeof(battBuf), "Battery - TX: -- | RX: %d%%", rxBatt);
+    snprintf(battBuf, sizeof(battBuf), "Battery - TX: -- | RX: %s", rxPart);
   }
   bool anyLowBattery = (haveEverReceived && lastPacket.battPercent < LOW_BATTERY_PERCENT)
-                        || rxBatt < LOW_BATTERY_PERCENT;
+                        || (rxBattAvailable && rxBatt < LOW_BATTERY_PERCENT);
   html += "<p class='stat" + String(anyLowBattery ? " stale" : "") + "'>" + String(battBuf) + "</p>";
 
   if (!haveEverReceived) {
