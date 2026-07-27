@@ -7,6 +7,18 @@
 // case, and a panel-mount cutout for an inline power switch spliced into
 // the battery lead.
 //
+// CLOSURE: the lid press-fits into a lip on the base, with 4 small snap
+// bumps (see bump_r/bump_protrude) that give it a bit of a "click" and
+// hold it shut for handling - it's meant to be glued the rest of the way
+// once you've test-fit everything, not screwed. No screw bosses sticking
+// out means a noticeably smaller footprint, which matters if this needs
+// to fit down a rocket's airframe.
+//
+// RECOVERY: there's a molded tie tab on the battery-bay end with a round
+// hole through it (see tie_hole_d) for a loop of paracord or shock cord,
+// so the transmitter stays attached to the parachute/harness instead of
+// becoming its own separate ballistic object on the way down.
+//
 // HOW TO USE THIS FILE
 //   1. Open in OpenSCAD (openscad.org - free, all platforms).
 //   2. Set the `part` variable below to "base" or "lid", press F6 (render),
@@ -78,23 +90,26 @@ batt_fit = 1.5; // clearance around the battery so it slides in easily
 // ---------------------------------------------------------------------
 // Case shell
 // ---------------------------------------------------------------------
-wall   = 4.0;   // thicker than a typical enclosure on purpose - this also
-                 // needs to survive a parachute landing, and the corner
-                 // mounting ears below need enough wall to sit in without
-                 // poking into either pocket (see ear_d comment)
+wall   = 2.5;   // a bit thicker than a typical small enclosure - this has
+                 // to survive a parachute landing - but slim enough to
+                 // help the whole thing fit down an airframe
 floor  = 2.0;
 lid_t  = 2.0;
-lip_h  = 3.0;   // depth of the base's lip that the lid seats into
-lip_gap = 0.25; // printer-dependent slop between lid lip and base lip
+lip_h  = 3.0;    // depth of the base's lip that the lid seats into
+lip_gap = 0.3;   // general clearance between lid skirt and base lip, sized
+                 // for an easy push-together fit - the snap bumps below
+                 // are what actually give it resistance/a "click", not a
+                 // tight fit across the whole perimeter (which is harder
+                 // to guarantee across different printers)
 
-// Corner mounting ears (screw the lid to the base with 4x M3 self-tapping
-// screws). Centered exactly on the case's 4 outer corners so half the
-// cylinder is an "ear" sticking out and half is structurally fused into
-// the case wall - ear_d's radius is kept smaller than `wall` so it can't
-// poke into either pocket.
-ear_d       = 6.5;
-ear_pilot_d = 2.6; // pilot hole in the base (self-tapping M3)
-ear_clear_d = 3.4; // clearance hole in the lid (screw passes through)
+// Small interference bumps on the lid's skirt (one per side, at the
+// midpoint) that the base's lip has to flex slightly to accept - gives a
+// "snap" you can feel going on, without relying on the whole perimeter
+// being a precise press-fit. This is meant to hold the lid on for
+// handling and a test-fit, then get glued for flight - not to be a
+// resealable connector.
+bump_r        = 1.5;  // bump sphere radius
+bump_protrude = 0.35; // how far the bump sticks out past the skirt face
 
 // Internal partition between the electronics bay and the battery bay -
 // the battery's JST wire just runs over the top of it, no hole needed.
@@ -128,7 +143,21 @@ ant_slot_y = 0.45; // fraction along that edge's length - 0 = USB end,
 // ---------------------------------------------------------------------
 sw_l = 13.0;
 sw_w = 6.5;
-sw_wall_offset = 10.0; // distance from the battery bay's outer end wall
+
+// ---------------------------------------------------------------------
+// Parachute/recovery tie tab (round hole for paracord or shock cord,
+// molded onto the battery bay's outer end wall, opposite the USB/antenna
+// end). Hole axis is vertical (top to bottom through the tab) so it
+// prints cleanly with zero bridging or supports, regardless of print
+// orientation.
+// ---------------------------------------------------------------------
+tie_tab_r     = 6.0;  // rounded tab radius - kept larger than `wall` on
+                       // purpose (see tie_tab_x below: the tab is centered
+                       // mid-wall so it always fuses into solid material
+                       // no matter how these numbers get tuned, instead of
+                       // relying on a hand-picked offset)
+tie_tab_thick = 6.0;  // tab thickness (vertical)
+tie_hole_d    = 4.5;  // fits paracord or thin shock cord with room to move
 
 // ==========================================================================
 // Derived layout
@@ -210,36 +239,44 @@ module base() {
       translate([wall + board_fit + x, wall + board_fit + y, floor])
         cylinder(d = post_dia, h = under_board_clear, $fn = 24);
 
-  // corner mounting ears with a self-tapping screw pilot hole, spanning
-  // the full height of the base shell (up to where the lid's lip seats)
-  for (c = [[0, 0], [case_l, 0], [0, case_w], [case_l, case_w]])
-    translate([c[0], c[1], 0])
-      difference() {
-        cylinder(d = ear_d, h = case_h - lip_h, $fn = 32);
-        translate([0, 0, -1]) cylinder(d = ear_pilot_d, h = case_h - lip_h + 2, $fn = 16);
-      }
+  // parachute/recovery tie tab - a single rounded lug centered mid-wall
+  // (so its inner half always fuses into solid material, regardless of
+  // how tie_tab_r/wall get tuned, rather than relying on a hand-picked
+  // offset) with its outer half sticking out past the wall and a vertical
+  // hole through it
+  tie_tab_x = case_l - wall/2 + tie_tab_r;
+  translate([tie_tab_x, case_w/2, floor])
+    difference() {
+      cylinder(r = tie_tab_r, h = tie_tab_thick, $fn = 32);
+      translate([0, 0, -1])
+        cylinder(d = tie_hole_d, h = tie_tab_thick + 2, $fn = 24);
+    }
 }
 
 // ==========================================================================
 // Lid
 // ==========================================================================
 module lid() {
-  difference() {
-    union() {
-      cube([case_l, case_w, lid_t]);
-      // skirt that overlaps the base's lip
-      translate([wall/2 + lip_gap, wall/2 + lip_gap, lid_t])
-        cube([case_l - wall - lip_gap*2, case_w - wall - lip_gap*2, lip_h - lip_gap]);
-      // corner ears matching the base's, so the screw heads have somewhere
-      // flat to sit
-      for (c = [[0, 0], [case_l, 0], [0, case_w], [case_l, case_w]])
-        translate([c[0], c[1], 0])
-          cylinder(d = ear_d, h = lid_t, $fn = 32);
-    }
-    // screw clearance holes matching the base's pilot holes
-    for (c = [[0, 0], [case_l, 0], [0, case_w], [case_l, case_w]])
-      translate([c[0], c[1], -1])
-        cylinder(d = ear_clear_d, h = lid_t + 2, $fn = 16);
+  skirt_z_mid = lid_t + (lip_h - lip_gap) / 2;
+  bump_inset  = bump_r - bump_protrude; // how far each bump center sits
+                                          // inside the skirt face so only
+                                          // `bump_protrude` mm pokes out
+
+  union() {
+    cube([case_l, case_w, lid_t]);
+    // skirt that inserts into the base's lip
+    translate([wall/2 + lip_gap, wall/2 + lip_gap, lid_t])
+      cube([case_l - wall - lip_gap*2, case_w - wall - lip_gap*2, lip_h - lip_gap]);
+
+    // snap bumps, one at the midpoint of each of the 4 skirt faces
+    translate([wall/2 + lip_gap + bump_inset, case_w/2, skirt_z_mid])
+      sphere(r = bump_r, $fn = 16);
+    translate([case_l - wall/2 - lip_gap - bump_inset, case_w/2, skirt_z_mid])
+      sphere(r = bump_r, $fn = 16);
+    translate([case_l/2, wall/2 + lip_gap + bump_inset, skirt_z_mid])
+      sphere(r = bump_r, $fn = 16);
+    translate([case_l/2, case_w - wall/2 - lip_gap - bump_inset, skirt_z_mid])
+      sphere(r = bump_r, $fn = 16);
   }
 }
 
