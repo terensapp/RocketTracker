@@ -24,6 +24,7 @@ Full technical detail — packet format, pin mappings, radio settings — is in 
 | `rocket_transmitter/rocket_transmitter.ino` | Flashes onto the board that rides in the rocket |
 | `rocket_receiver/rocket_receiver.ino` | Flashes onto the handheld receiver |
 | `SETUP_README.md` | Step-by-step flashing and bench-test guide |
+| `enclosures/transmitter_case.scad` | Parametric 3D-printable case for the transmitter (board stack + battery + switch cutout) |
 
 ## Bill of Materials
 
@@ -51,6 +52,10 @@ Optional: a CR1220 coin cell ([adafruit.com/product/380](https://www.adafruit.co
 You only need one N30 for the receiver — the Amazon listing sells them as a 2-pack, so the second board makes a handy spare or a second ground unit. It ships as a kit (board, battery, case, antenna as separate pieces you assemble) rather than pre-built — expect a few minutes of snapping it together, not soldering.
 
 **Region note:** both sketches default to 915MHz (US). Outside the US, buy 868MHz-band antennas instead and change `LORA_FREQ_MHZ` to `868.0` in both `.ino` files — see the "Frequency/region" note in `SETUP_README.md`.
+
+### Optional: a case for the transmitter
+
+`enclosures/transmitter_case.scad` is a 3D-printable case that holds the whole transmitter stack — board, battery, and a cutout for an inline power switch. See the "3D-printed transmitter case" section in [`SETUP_README.md`](SETUP_README.md) for details and printing notes.
 
 ## Getting started
 

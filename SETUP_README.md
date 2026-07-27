@@ -117,6 +117,16 @@ If those two ever disagree by more than a few minutes, it means you edited the s
 - **Antenna orientation matters more than people expect** for LoRa range — keep both antennas vertical and don't wrap the transmitter's wire antenna around anything metal.
 - **RadioLib version.** Both sketches were written against the current RadioLib API (v6.x). If you already have an older RadioLix installed, update it via Library Manager first.
 
+## 3D-printed transmitter case
+
+![Preview of the transmitter case, base and lid](enclosures/transmitter_case_preview.png)
+
+`enclosures/transmitter_case.scad` is a parametric [OpenSCAD](https://openscad.org) enclosure for the transmitter stack: a pocket for the Feather M0 + GPS FeatherWing, a bay for the 500mAh LiPo, a USB cutout for flashing/charging, an exit slot for the antenna, and a panel-mount cutout for an inline power switch spliced into the battery lead (the transmitter has no on/off switch of its own — see "Power (receiver)" above for why one helps here too). Base and lid screw together with 4x M3 self-tapping screws through the corner ears.
+
+**Read the comments at the top of the file before printing.** The board/header/connector dimensions come from Adafruit's published specs, not calipers on your actual hardware, so a few things (USB cutout position, antenna slot position, mounting-hole spacing) are best-effort estimates with generous built-in clearance. Print the base first, test-fit your actual boards and battery, and nudge the relevant variable at the top of the file if something's off before printing the lid.
+
+To use it: open the file in OpenSCAD, set the `part` variable near the top to `"base"` or `"lid"`, press F6 to render, then export as STL — do this once for each part. Leaving `part` set to `"both"` just previews them side by side.
+
 ## Packet format (for reference, if you want to extend this later)
 
 Both sketches share this 19-byte struct — keep them in sync if you add fields:
