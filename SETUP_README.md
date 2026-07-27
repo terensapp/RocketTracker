@@ -56,7 +56,7 @@ Then **Tools > Board > Boards Manager**:
 1. Power both boards up near each other.
 2. The transmitter's onboard LED should blink briefly once per second (each successful send).
 3. The receiver's OLED should update with lat/lon once the transmitter has a GPS fix — try this near a window or outdoors, GPS won't get a fix indoors.
-4. On your phone, connect to WiFi network `RocketTracker` (password `findmyrocket`), then open `http://192.168.4.1` in a browser. You should see the coordinates and a green "Navigate to Rocket" button — tapping it should hand off to your maps app (Android/Google Maps users use that button directly; iPhone users with only Apple Maps should use the smaller "Open in Apple Maps" link underneath it).
+4. On your phone, connect to WiFi network `RocketTracker` (password `findmyrocket`), then open `http://192.168.4.1` in a browser. You should see the coordinates and a green "Navigate to Rocket" button — tapping it always opens Google Maps (the app if it's installed, otherwise the website), regardless of phone.
 5. Walk the transmitter away from the receiver in a straight line to get a rough real-world range estimate before your first launch. Don't assume the spec-sheet range — trees, buildings, and antenna orientation all matter.
 
 ## Altitude

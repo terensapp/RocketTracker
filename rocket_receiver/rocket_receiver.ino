@@ -1,6 +1,6 @@
 /*
   ROCKET TRACKER - RECEIVER
-  Version: v6 - pushed 2026-07-26 03:05 UTC. This is when the source itself
+  Version: v7 - pushed 2026-07-27 01:58 UTC. This is when the source itself
            was last changed - update it whenever this file changes. It's
            deliberately separate from the "Firmware built" timestamp printed
            to Serial at boot, which only tells you when THAT PARTICULAR
@@ -469,19 +469,13 @@ void handleRoot() {
     snprintf(buf, sizeof(buf), "Last update: %lus ago", ageMs / 1000);
     html += "<p class='stat" + String(stale ? " stale" : "") + "'>" + String(buf) + "</p>";
 
-    // Two links because phones disagree on how to open a map from a link:
-    // "geo:" is the Android/Google Maps convention (also works on iPhone IF
-    // Google Maps is installed, since that app registers the scheme) - but
-    // stock iOS Safari has no handler for "geo:" on its own, so an iPhone
-    // with only Apple Maps installed would tap the button and see nothing
-    // happen. The maps.apple.com link covers that case.
-    char geo[64];
-    snprintf(geo, sizeof(geo), "geo:%.6f,%.6f", lastPacket.lat, lastPacket.lon);
-    html += "<a class='nav' href='" + String(geo) + "'>Navigate to Rocket</a>";
-
-    char appleMaps[96];
-    snprintf(appleMaps, sizeof(appleMaps), "https://maps.apple.com/?ll=%.6f,%.6f&q=Rocket", lastPacket.lat, lastPacket.lon);
-    html += "<p class='stat'><a href='" + String(appleMaps) + "' style='color:#8cf;'>iPhone? Open in Apple Maps instead</a></p>";
+    // Always opens Google Maps - the Google Maps app if it's installed
+    // (Android or iPhone), otherwise the Google Maps website. Same link
+    // works everywhere, no platform detection needed.
+    char nav[96];
+    snprintf(nav, sizeof(nav), "https://www.google.com/maps/dir/?api=1&destination=%.6f,%.6f",
+             lastPacket.lat, lastPacket.lon);
+    html += "<a class='nav' href='" + String(nav) + "'>Navigate to Rocket</a>";
   }
 
   html += "</body></html>";
