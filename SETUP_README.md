@@ -72,6 +72,12 @@ Two honest caveats: GPS altitude is less accurate than horizontal position — c
 
 Everything shown to you — on the OLED, the web page, and in this guide — is in feet. Internally the GPS and the radio packet still use meters (that's what GPS hardware natively reports), the conversion just happens once, right before anything gets displayed.
 
+### Live altitude graph
+
+The web page also draws a running graph of height-above-pad for the whole flight so far — no separate app, it's a plain HTML5 canvas the receiver draws itself, since the phone has no internet access while connected to the receiver's hotspot (a CDN-hosted charting library just wouldn't load). The graph, the max-height reading, and the altitude baseline all reset together — either by power-cycling the receiver, or by tapping **New Launch** at the bottom of the web page, which is the faster option if you're running multiple flights in a day.
+
+The receiver keeps up to 30 minutes of altitude history per flight (one point per second, ~7KB of RAM — this board has hundreds of KB free, so it's not a real constraint). If a flight somehow runs past that, new points stop recording rather than erasing the earlier ones, so you still keep the actual ascent/descent profile instead of losing it.
+
 ## Battery status
 
 The transmitter's battery level shows up on the receiver's screen and web page ("TX Batt: 82%"), so you can check "is there plenty of charge for this flight" before you walk out to the pad. The Feather M0 measures its own LiPo voltage (built into the board, no extra hardware) and rides it along in every LoRa packet it already sends once a second — this works from the moment it powers on, even before GPS gets a fix, since it doesn't depend on GPS at all.

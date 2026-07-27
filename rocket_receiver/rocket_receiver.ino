@@ -1,6 +1,6 @@
 /*
   ROCKET TRACKER - RECEIVER
-  Version: v7 - pushed 2026-07-27 01:58 UTC. This is when the source itself
+  Version: v8 - pushed 2026-07-27 02:07 UTC. This is when the source itself
            was last changed - update it whenever this file changes. It's
            deliberately separate from the "Firmware built" timestamp printed
            to Serial at boot, which only tells you when THAT PARTICULAR
@@ -139,6 +139,18 @@ bool haveAltBaseline = false;
 float baselineAltM = 0.0f;
 float maxHeightAboveGroundM = 0.0f;
 
+// Rolling log of height-above-pad for the web page's live altitude graph.
+// One packet arrives per second, so this is ~30 minutes of flight history -
+// plenty for any model rocket flight, and only 7.2KB of RAM (this board has
+// ~277KB free), so there's no real memory pressure here. Once full, new
+// points stop recording rather than overwriting old ones, so the graph
+// still shows the actual flight instead of scrolling it away - tap "New
+// Launch" on the web page (or power-cycle the receiver) to reset it and
+// start a fresh graph/baseline for the next flight.
+#define MAX_ALT_SAMPLES 1800
+float altSamplesM[MAX_ALT_SAMPLES];
+uint16_t altSampleCount = 0;
+
 // GPS altitude typically has more error than horizontal position (commonly
 // +/-30-50 feet without differential correction) - treat this as a rough
 // estimate, not a precise altimeter reading.
@@ -205,6 +217,7 @@ void setup() {
   Serial.println(WiFi.softAPIP());
 
   server.on("/", handleRoot);
+  server.on("/newlaunch", handleNewLaunch);
   server.begin();
 }
 
@@ -254,6 +267,9 @@ void handleLoraPacket() {
     float heightAboveGround = lastPacket.alt_m - baselineAltM;
     if (heightAboveGround > maxHeightAboveGroundM) {
       maxHeightAboveGroundM = heightAboveGround;
+    }
+    if (altSampleCount < MAX_ALT_SAMPLES) {
+      altSamplesM[altSampleCount++] = heightAboveGround;
     }
   }
 
@@ -416,6 +432,68 @@ void drawStatus() {
 // Web server
 // ---------------------------------------------------------------------
 
+// Resets the altitude baseline, max-height tracker, and graph buffer so the
+// next valid GPS fix becomes the new "ground level" - lets you run multiple
+// flights in a day without power-cycling the receiver between each one.
+void handleNewLaunch() {
+  altSampleCount = 0;
+  haveAltBaseline = false;
+  baselineAltM = 0.0f;
+  maxHeightAboveGroundM = 0.0f;
+  Serial.println(F("New Launch: altitude baseline and graph reset."));
+  server.sendHeader("Location", "/");
+  server.send(303);
+}
+
+// Builds a self-contained <canvas> altitude graph (height above pad, in feet,
+// over the whole flight so far). No external chart library - the phone is on
+// this board's own WiFi hotspot with no internet route out, so anything
+// pulled from a CDN would just fail to load. Plain HTML5 canvas + inline JS
+// works completely offline.
+//
+// altSamplesM can hold up to MAX_ALT_SAMPLES points, but plotting more than
+// a couple hundred pixels' worth of points doesn't add visible detail, so
+// this downsamples with a simple stride before sending it to the browser -
+// keeps the page small and the draw fast even after a long flight.
+String buildAltGraphHtml() {
+  if (altSampleCount < 2) {
+    return "<p class='stat' style='opacity:0.6;'>Altitude graph will appear once a baseline is set (transmitter needs a GPS fix).</p>";
+  }
+
+  const uint16_t maxPoints = 200;
+  uint16_t stride = (altSampleCount > maxPoints) ? (altSampleCount / maxPoints) : 1;
+
+  String csv;
+  csv.reserve(maxPoints * 6);
+  for (uint16_t i = 0; i < altSampleCount; i += stride) {
+    if (csv.length() > 0) csv += ",";
+    csv += String(metersToFeet(altSamplesM[i]), 0);
+  }
+
+  String html = "<canvas id='altChart' width='320' height='150' "
+                 "style='background:#1a1a1a;border-radius:8px;margin-top:14px;max-width:100%;'></canvas>";
+  html += "<script>";
+  html += "(function(){";
+  html += "var d=[" + csv + "];";
+  html += "var c=document.getElementById('altChart');var ctx=c.getContext('2d');";
+  html += "var w=c.width,h=c.height,pad=24;";
+  html += "var mn=Math.min.apply(null,d),mx=Math.max.apply(null,d);if(mx===mn){mx=mn+1;}";
+  html += "ctx.strokeStyle='#444';ctx.lineWidth=1;";
+  html += "ctx.beginPath();ctx.moveTo(pad,h-pad);ctx.lineTo(w-4,h-pad);ctx.stroke();";
+  html += "ctx.strokeStyle='#2b7';ctx.lineWidth=2;ctx.beginPath();";
+  html += "for(var i=0;i<d.length;i++){";
+  html += "var x=pad+(w-pad-8)*i/(d.length-1);";
+  html += "var y=h-pad-(h-pad-10)*(d[i]-mn)/(mx-mn);";
+  html += "if(i===0){ctx.moveTo(x,y);}else{ctx.lineTo(x,y);}}";
+  html += "ctx.stroke();";
+  html += "ctx.fillStyle='#aaa';ctx.font='11px sans-serif';";
+  html += "ctx.fillText(Math.round(mx)+'ft',2,12);";
+  html += "ctx.fillText(Math.round(mn)+'ft',2,h-pad+14>h-2?h-2:h-pad+14);";
+  html += "})();";
+  html += "</script>";
+  return html;
+}
+
 void handleRoot() {
   String html = "<!DOCTYPE html><html><head>";
   html += "<meta name='viewport' content='width=device-width, initial-scale=1'>";
@@ -477,6 +555,11 @@ void handleRoot() {
              lastPacket.lat, lastPacket.lon);
     html += "<a class='nav' href='" + String(nav) + "'>Navigate to Rocket</a>";
   }
+
+  html += buildAltGraphHtml();
+
+  html += "<p style='margin-top:18px;'><a href='/newlaunch' style='color:#f80;font-size:0.9em;'>"
+          "New Launch (reset altitude graph &amp; baseline)</a></p>";
 
   html += "</body></html>";
   server.send(200, "text/html", html);
