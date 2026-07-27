@@ -74,6 +74,10 @@ Everything shown to you — on the OLED, the web page, and in this guide — is 
 
 ### Live altitude graph
 
+![Sample of the receiver's web page with the altitude graph](docs/receiver_web_ui_sample.png)
+
+*Illustrative mockup with sample flight data, not a real device screenshot — shows roughly what the web page looks like once you have a flight logged.*
+
 The web page also draws a running graph of height-above-pad for the whole flight so far — no separate app, it's a plain HTML5 canvas the receiver draws itself, since the phone has no internet access while connected to the receiver's hotspot (a CDN-hosted charting library just wouldn't load). The graph, the max-height reading, and the altitude baseline all reset together — either by power-cycling the receiver, or by tapping **New Launch** at the bottom of the web page, which is the faster option if you're running multiple flights in a day.
 
 The receiver keeps up to 30 minutes of altitude history per flight (one point per second, ~7KB of RAM — this board has hundreds of KB free, so it's not a real constraint). If a flight somehow runs past that, new points stop recording rather than erasing the earlier ones, so you still keep the actual ascent/descent profile instead of losing it.

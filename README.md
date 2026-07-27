@@ -11,6 +11,12 @@ No cellular network, no WiFi infrastructure, no subscription — just point-to-p
 
 Full technical detail — packet format, pin mappings, radio settings — is in [`SETUP_README.md`](SETUP_README.md) and in the comments at the top of each `.ino` file.
 
+<p align="center">
+  <img src="docs/receiver_web_ui_sample.png" alt="Sample of the receiver's web page, showing battery, GPS fix, altitude graph, and navigation button" width="360">
+</p>
+
+<p align="center"><em>Illustrative mockup with sample flight data (not a real device screenshot) — shows the receiver's web page layout: battery, GPS fix, live altitude graph, and the "Navigate to Rocket" / "New Launch" buttons.</em></p>
+
 ## Repo contents
 
 | Path | What it is |
