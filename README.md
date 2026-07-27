@@ -36,8 +36,8 @@ Two boards, no soldering beyond an optional antenna wire. Prices are approximate
 | --- | --- | --- |
 | Adafruit Feather M0 with RFM95 LoRa Radio (900MHz) | $34.95 | [adafruit.com/product/3178](https://www.adafruit.com/product/3178) |
 | Adafruit Ultimate GPS FeatherWing | $24.95 | [adafruit.com/product/3133](https://www.adafruit.com/product/3133) |
-| 3.7V LiPo battery (500mAh is a good size/weight tradeoff) | $7.95 | [adafruit.com/product/1578](https://www.adafruit.com/product/1578) |
-| 915MHz spring antenna (or solder your own quarter-wave wire — the sketch comments explain the length) | $0.95 | [adafruit.com/product/4269](https://www.adafruit.com/product/4269) |
+| 3.7V 300mAh LiPo, generic "302040" size (3.0 x 20 x 40mm, JST-PH connector) — a standard size code widely sold on Amazon/AliExpress, not an Adafruit part; search "302040 300mAh lipo" | ~$7-9 | generic |
+| 915MHz spring antenna — 17.5mm long, 2.15dBi gain, 50Ω impedance, solders directly to the board's ANT pad (or solder your own quarter-wave wire instead — the sketch comments explain the length) | $0.95 | [adafruit.com/product/4269](https://www.adafruit.com/product/4269) |
 | Micro USB cable, for flashing | — | any micro USB cable |
 
 Optional: a CR1220 coin cell ([adafruit.com/product/380](https://www.adafruit.com/product/380), $0.95) gives the GPS module a warm-start battery backup — not required, just speeds up subsequent fixes.

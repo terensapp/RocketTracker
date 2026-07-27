@@ -121,7 +121,7 @@ If those two ever disagree by more than a few minutes, it means you edited the s
 
 ![Preview of the transmitter case, base and lid](enclosures/transmitter_case_preview.png)
 
-`enclosures/transmitter_case.scad` is a parametric [OpenSCAD](https://openscad.org) enclosure for the transmitter stack: a pocket for the Feather M0 + GPS FeatherWing, a bay for the 500mAh LiPo, a USB cutout for flashing/charging, an exit slot for the antenna, and a panel-mount cutout for an inline power switch spliced into the battery lead (the transmitter has no on/off switch of its own — see "Power (receiver)" above for why one helps here too).
+`enclosures/transmitter_case.scad` is a parametric [OpenSCAD](https://openscad.org) enclosure for the transmitter stack: a pocket for the Feather M0 + GPS FeatherWing, a bay for a 300mAh "302040" LiPo, a USB cutout for flashing/charging, a hole for the antenna to poke through, and a panel-mount cutout for an inline power switch spliced into the battery lead (the transmitter has no on/off switch of its own — see "Power (receiver)" above for why one helps here too).
 
 The lid press-fits onto the base with a lip and 4 small snap bumps that give it a "click" and hold it shut for handling — no screws sticking out, which keeps the footprint smaller for fitting down an airframe. It's meant to be glued shut once you've test-fit everything and are happy with it, not re-opened repeatedly. There's also a molded tie tab on the battery-bay end with a ~4.5mm hole through it, for tying the transmitter to the parachute or recovery harness with paracord or shock cord — so it comes down attached to the rocket instead of becoming its own separate object in the air.
 

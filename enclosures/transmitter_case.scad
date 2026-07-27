@@ -3,9 +3,10 @@
 // ==========================================================================
 // Holds: Adafruit Feather M0 w/ RFM95 LoRa (900MHz, product 3178) with the
 // Adafruit Ultimate GPS FeatherWing (product 3133) stacked on top, a 3.7V
-// 500mAh LiPo (product 1578), room for a spring/wire antenna to exit the
-// case, and a panel-mount cutout for an inline power switch spliced into
-// the battery lead.
+// 300mAh LiPo (generic "302040" size, ~40 x 20 x 3mm - see battery bay
+// section below), a hole for a spring antenna to poke through, and a
+// panel-mount cutout for an inline power switch spliced into the battery
+// lead.
 //
 // CLOSURE: the lid press-fits into a lip on the base, with 4 small snap
 // bumps (see bump_r/bump_protrude) that give it a bit of a "click" and
@@ -40,12 +41,15 @@
 //
 // WHERE THE ANTENNA EXITS
 //   Adafruit's guide has you solder the antenna into the "ANT" pad on the
-//   right-hand edge of the Feather (USB connector oriented at the top).
-//   `ant_slot_y` below controls how far down that edge the exit slot is
-//   cut - the default is a rough middle-of-the-edge guess. Check where
-//   your antenna is actually soldered before printing and nudge that
-//   number to match; the slot is intentionally a bit oversized so small
-//   misses still work.
+//   right-hand long edge of the Feather (USB connector oriented at the
+//   top), positioned toward the end of the board opposite USB (that's
+//   where the RFM95 radio module itself sits). The exit hole below is on
+//   that same long edge, close to the far end - NOT on the far end wall
+//   itself, because that wall is shared with the battery bay right next
+//   to it, and the antenna's lead (about 17.5mm total) isn't long enough
+//   to reach all the way across the battery bay to the case's true far
+//   end. `ant_hole_y` controls exactly how close to the end it sits -
+//   check where your antenna is actually soldered before printing.
 // ==========================================================================
 
 part = "both"; // "base", "lid", or "both" (preview only)
@@ -80,12 +84,17 @@ post_dia    = 6.0;   // support nub diameter at each estimated hole location
                       // verified the real hole positions on your board)
 
 // ---------------------------------------------------------------------
-// Battery bay (Adafruit 1578, 3.7V 500mAh)
+// Battery bay - sized for a 3.7V 300mAh LiPo, generic "302040" size code
+// (a standard, widely-sold LiPo footprint - the digits are the physical
+// dimensions: 3.0mm thick x 20mm wide x 40mm long). Not an Adafruit part
+// number - these are commonly sold on Amazon/AliExpress with a JST-PH
+// connector, search "302040 300mAh lipo". Swap batt_l/batt_w/batt_t below
+// if your actual battery's printed dimensions differ.
 // ---------------------------------------------------------------------
-batt_l = 36.0;
-batt_w = 29.0;
-batt_t = 4.75;
-batt_fit = 1.5; // clearance around the battery so it slides in easily
+batt_l = 40.0;
+batt_w = 20.0;
+batt_t = 3.0;
+batt_fit = 1.2; // clearance around the battery so it slides in easily
 
 // ---------------------------------------------------------------------
 // Case shell
@@ -127,13 +136,18 @@ usb_offset = 6.0; // distance from the electronics-bay side wall to the
                    // to match your board if it's off
 
 // ---------------------------------------------------------------------
-// Antenna exit slot (right-hand edge of the Feather, per Adafruit's guide)
+// Antenna exit hole (right-hand long edge of the Feather, near the end
+// opposite USB - see "WHERE THE ANTENNA EXITS" at the top of this file).
+// Sized for Adafruit's Simple Spring Antenna - 915MHz (product 4269):
+// 17.5mm long, 0.8mm wire gauge wound into a coil - the coil's outer
+// diameter isn't published, so ant_hole_d below is a generous estimate
+// with clearance built in, not a measured fit.
 // ---------------------------------------------------------------------
-ant_slot_w = 8.0;
-ant_slot_h = 4.0;
-ant_slot_y = 0.45; // fraction along that edge's length - 0 = USB end,
-                    // 1 = far end. 0.45 is a rough "somewhere in the
-                    // middle" guess - adjust to match your board.
+ant_hole_d = 5.0;
+ant_hole_y = 0.9; // fraction along that edge's length - 0 = USB end,
+                   // 1 = far/divider end. 0.9 keeps it close to the far
+                   // end (where the radio module is) with a little margin
+                   // from the corner for wall strength.
 
 // ---------------------------------------------------------------------
 // Inline power switch cutout (panel-mount slide switch spliced into the
@@ -192,12 +206,16 @@ module base() {
     union() {
       // outer shell
       cube([case_l, case_w, case_h - lip_h]);
-      // lip that the lid seats onto
+      // lip that the lid seats onto - a ring flush with the case's outer
+      // surface, with the SAME wall thickness as the rest of the case, so
+      // it's a seamless upward continuation of the walls below it (not
+      // inset from the outside, which is what made the lip nearly
+      // paper-thin and unable to actually hold the lid's skirt)
       difference() {
-        translate([wall/2, wall/2, case_h - lip_h])
-          cube([case_l - wall, case_w - wall, lip_h]);
-        translate([wall/2 + lip_gap, wall/2 + lip_gap, case_h - lip_h])
-          cube([case_l - wall - lip_gap*2, case_w - wall - lip_gap*2, lip_h + 1]);
+        translate([0, 0, case_h - lip_h])
+          cube([case_l, case_w, lip_h]);
+        translate([wall, wall, case_h - lip_h - 1])
+          cube([case_l - wall*2, case_w - wall*2, lip_h + 2]);
       }
     }
 
@@ -217,11 +235,13 @@ module base() {
     translate([-1, wall + usb_offset, floor + under_board_clear + pcb_t/2 - usb_h/2])
       cube([wall + 2, usb_w, usb_h]);
 
-    // antenna exit slot on the "right" long edge of the electronics bay
-    translate([wall + elec_pocket_l * ant_slot_y - ant_slot_w/2,
+    // antenna exit hole on the "right" long edge of the electronics bay,
+    // close to the far/divider end (see "WHERE THE ANTENNA EXITS" above)
+    translate([wall + elec_pocket_l * ant_hole_y,
                wall + elec_pocket_w - 1,
-               floor + under_board_clear + pcb_t + header_gap/2 - ant_slot_h/2])
-      cube([ant_slot_w, wall + 2, ant_slot_h]);
+               floor + under_board_clear + pcb_t + header_gap/2])
+      rotate([-90, 0, 0])
+        cylinder(d = ant_hole_d, h = wall + 2, $fn = 24);
 
     // inline switch cutout on the battery bay's outer end (far) wall -
     // straight through-cut, no need to rotate since this wall already
@@ -264,18 +284,19 @@ module lid() {
 
   union() {
     cube([case_l, case_w, lid_t]);
-    // skirt that inserts into the base's lip
-    translate([wall/2 + lip_gap, wall/2 + lip_gap, lid_t])
-      cube([case_l - wall - lip_gap*2, case_w - wall - lip_gap*2, lip_h - lip_gap]);
+    // skirt that inserts into the base's lip cavity (which is exactly
+    // `wall` thick all around, matching the rest of the case - see base())
+    translate([wall + lip_gap, wall + lip_gap, lid_t])
+      cube([case_l - wall*2 - lip_gap*2, case_w - wall*2 - lip_gap*2, lip_h - lip_gap]);
 
     // snap bumps, one at the midpoint of each of the 4 skirt faces
-    translate([wall/2 + lip_gap + bump_inset, case_w/2, skirt_z_mid])
+    translate([wall + lip_gap + bump_inset, case_w/2, skirt_z_mid])
       sphere(r = bump_r, $fn = 16);
-    translate([case_l - wall/2 - lip_gap - bump_inset, case_w/2, skirt_z_mid])
+    translate([case_l - wall - lip_gap - bump_inset, case_w/2, skirt_z_mid])
       sphere(r = bump_r, $fn = 16);
-    translate([case_l/2, wall/2 + lip_gap + bump_inset, skirt_z_mid])
+    translate([case_l/2, wall + lip_gap + bump_inset, skirt_z_mid])
       sphere(r = bump_r, $fn = 16);
-    translate([case_l/2, case_w - wall/2 - lip_gap - bump_inset, skirt_z_mid])
+    translate([case_l/2, case_w - wall - lip_gap - bump_inset, skirt_z_mid])
       sphere(r = bump_r, $fn = 16);
   }
 }
