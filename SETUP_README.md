@@ -129,6 +129,49 @@ The lid press-fits onto the base with a lip and 4 small snap bumps that give it 
 
 To use it: open the file in OpenSCAD, set the `part` variable near the top to `"base"` or `"lid"`, press F6 to render, then export as STL — do this once for each part. Leaving `part` set to `"both"` just previews them side by side.
 
+## Alternative build: CubeCell GPS (smaller transmitter)
+
+`rocket_transmitter_cubecell/rocket_transmitter_cubecell.ino` is a second transmitter sketch, for the **Heltec CubeCell GPS (HTCC-AB02S)** instead of the Feather M0 stack. Same job, same 19-byte packet, works with the **same receiver sketch unchanged** — pick whichever transmitter build suits your rocket, you don't need both.
+
+**Read this before buying the board.** Heltec lists the CubeCell ASR650X series (which includes this board) as "Phaseout" — their term for discontinued/end-of-life. It's still buying-and-building-fine today, but if you need a replacement board in a year or two, it may not be available, and you'd be rebuilding around whatever CubeCell's would-be replacement is at that point. The Feather M0 build uses boards Adafruit actively sells and is the safer long-term choice. This alternative exists for anyone who wants the smaller size now and is fine sourcing/stocking a spare board or two themselves.
+
+### Why smaller
+
+The Feather M0 build stacks three boards (MCU+radio, GPS wing, battery) with headroom between them for header pins and a patch antenna. CubeCell GPS puts the MCU, SX1262 radio, and GPS on one 55.9 x 27.9 x 9.5mm board — no stacking. The matching case (`enclosures/transmitter_case_cubecell.scad`) comes out to roughly 35mm wide x 16mm tall, versus 30mm x 26mm for the Feather case — shallower, which matters more than raw length for sliding into a narrow airframe.
+
+### Radio compatibility with the existing receiver
+
+The receiver uses RadioLib against an SX1262. CubeCell's board package doesn't support RadioLib, so this sketch uses Heltec's own raw point-to-point LoRa driver instead (not full LoRaWAN — no gateway involved, just direct radio-to-radio, same idea as RadioLib's send/receive). Two different libraries can still talk to each other because LoRa is a physical-layer standard: as long as both sides agree on frequency (915MHz), bandwidth (125kHz), spreading factor (SF9), coding rate (4/7), and sync word (0x12), it doesn't matter whose software is driving the radio chip. All five are matched between the two sketches already — the comments at the top of `rocket_transmitter_cubecell.ino` explain exactly how each one maps between the two libraries' different naming/numbering conventions, in case you ever change one and need to update the other.
+
+### Board package and flashing
+
+1. **File > Preferences > Additional Board Manager URLs**, add:
+   ```
+   https://resource.heltec.cn/download/package_CubeCell_index.json
+   ```
+2. **Tools > Board > Boards Manager** > install **"CubeCell"**
+3. Select board: **"CubeCell-GPS(HTCC-AB02S)"**
+4. No extra libraries to install — the radio and GPS support ship inside the CubeCell board package itself.
+5. Open `rocket_transmitter_cubecell.ino`, hit Upload.
+
+### Compile verification — one honest caveat
+
+This sketch has been compile-and-link verified against the real CubeCell board package (v1.4.0) and a real ARM cross-compiler — zero errors. There's one gap in that verification worth knowing about: producing the final `.cyacd` file (Heltec's proprietary format their flashing tool expects) requires a packaging utility that Heltec only ships as an x86_64 Linux/Mac/Windows binary, which the sandbox this was verified in couldn't run. That utility only repackages an already-correctly-compiled program into their upload format — it doesn't affect whether the code itself is correct — but it does mean the very last step (does the Arduino IDE's own Upload button produce a working `.cyacd` on your machine) hasn't been exercised end-to-end the way the Feather/receiver sketches have. On a normal desktop running the Arduino IDE, this isn't a concern at all — that packaging tool runs fine there, this caveat is purely an artifact of the sandboxed environment used to check the code.
+
+### Battery connector — check before ordering
+
+CubeCell GPS's onboard battery connector is **JST-SH, 1.25mm pitch** — not the JST-PH 2.0mm pitch used on the Feather build. The same "302040" 300mAh LiPo size works fine, but double-check which connector your specific battery listing ships with before ordering (some sellers offer both).
+
+### Antenna — different connector than the Feather build
+
+The Feather build solders a spring antenna directly to a pad. CubeCell GPS instead has a **u.FL/IPEX connector**, so you need a u.FL-compatible antenna (a direct-mount stub, or a u.FL-to-SMA pigtail plus a separate SMA antenna) rather than a solder-in one — see the BOM in the main README for a specific part.
+
+### Case
+
+![Preview of the CubeCell transmitter case](enclosures/transmitter_case_cubecell_preview.png)
+
+`enclosures/transmitter_case_cubecell.scad` follows the same conventions as the Feather case: snap-lid-and-glue closure, a parachute tie tab, an inline power switch cutout. Two things are different because the hardware is different: there's no verified mounting-hole spec published for this board, so the case relies on a snug pocket fit rather than screw posts (see the comment in the file); and the antenna hole is cut through the **top of the lid** rather than a side wall, sized generously and centered, since a u.FL pigtail is flexible enough to reach an opening almost anywhere above the board — a deliberate choice to avoid guessing a tight side-wall position from an unverified connector location. As always: print the base first, test-fit your actual board and battery before printing the lid.
+
 ## Packet format (for reference, if you want to extend this later)
 
 Both sketches share this 19-byte struct — keep them in sync if you add fields:
