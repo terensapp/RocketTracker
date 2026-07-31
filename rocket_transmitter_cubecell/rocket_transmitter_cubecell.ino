@@ -1,6 +1,6 @@
 /*
   ROCKET TRACKER - TRANSMITTER (CubeCell all-in-one alternative)
-  Version:  v1 - pushed 2026-07-27 23:22 UTC.
+  Version:  v2 - added GPS diagnostic counters to the serial log.
   Board:    Heltec CubeCell GPS, HTCC-AB02S (ASR6502 MCU + SX1262 LoRa radio +
             onboard Air530Z GPS, all on one small board - no stacking headers)
   Role:     Alternative to rocket_transmitter/rocket_transmitter.ino for a
@@ -8,6 +8,56 @@
             into the same binary packet, sends it over LoRa. Works with the
             SAME receiver sketch (rocket_receiver/rocket_receiver.ino) with NO
             changes there - see the "why this is compatible" note below.
+
+  ------------------------------------------------------------------------
+  "SATS: 0 FIX: N" ON THE RECEIVER - HOW TO TELL WHAT'S WRONG
+    This just means the transmitter hasn't gotten a satellite fix yet -
+    normal at first, but it can mean two very different things, and the
+    receiver's display alone can't tell you which:
+      1. The GPS chip isn't getting any data to/from it at all (wiring,
+         library, or a dead chip).
+      2. The GPS chip is working fine and receiving satellite signal, it
+         just hasn't locked a fix yet - completely normal for a while.
+    Open the Arduino Serial Monitor on the TRANSMITTER (not the receiver)
+    at 115200 baud and check two things:
+
+    A) At boot, before "Radio ready..." prints, the GPS library itself
+       prints its own baud-detection log:
+         GPS Current baudrate detecting...
+         GPS Current baudrate detected: 9600
+         GPS baudrate updating to 9600
+         GPS baudrate updated to 9600
+       If you see "GPS baudrate updated failed, use GPS baudrate ..."
+       instead, the chip isn't responding at the hardware level - that's
+       a wiring/board problem, not a "needs more time" problem.
+
+    B) Every second, sendPacket() below now also prints:
+         GPS chars=<N> sentencesWithFix=<N> checksumFail=<N>
+       `chars` should be counting up every second the GPS is powered - if
+       it's stuck at 0, no data is arriving from the chip at all (same
+       hardware-level problem as A). If `chars` is counting up but
+       `sentencesWithFix` stays at 0, the chip IS talking, it's just not
+       locked onto enough satellites yet - that's case 2 above, and it's
+       an antenna/sky-view/time problem, not a code problem.
+
+    If it's case 2, a few things worth knowing (found via the Heltec
+    community forum - multiple independent reports, not just one):
+      - First fix after power-on can take a LONG time - one documented
+        case took over an hour before the first fix, then a few minutes
+        on subsequent power-ons. This board has no backup battery for the
+        GPS almanac (unlike the Feather build's optional CR1220), so it's
+        plausible every power-cycle needs close to a full cold-start wait,
+        not just the very first one. Give it real time (30+ minutes)
+        before assuming something's wrong.
+      - It needs a genuinely open sky view - indoors, it may never get a
+        fix no matter how long you wait. Test outdoors, away from windows.
+      - The onboard antenna on this board has multiple independent reports
+        of being weak (or occasionally DOA from the factory) - if you've
+        confirmed case 2 (chars counting, no fix) and given it real time
+        outdoors and it's still stuck, an external active GPS antenna via
+        the board's GPS u.FL connector (separate from the LoRa one) is a
+        documented fix for others who hit this. See the Heltec community
+        forum threads on "no GPS fix" for more if you land here.
 
   ------------------------------------------------------------------------
   WHY THIS EXISTS / TRADE-OFFS VS. THE FEATHER M0 BUILD
@@ -209,7 +259,12 @@ void sendPacket() {
   Serial.print(pendingPacket.sats);
   Serial.print(" batt=");
   Serial.print(pendingPacket.battPercent);
-  Serial.println("%");
+  Serial.print("% | GPS chars=");
+  Serial.print(GPS.charsProcessed());
+  Serial.print(" sentencesWithFix=");
+  Serial.print(GPS.sentencesWithFix());
+  Serial.print(" checksumFail=");
+  Serial.println(GPS.failedChecksum());
 }
 
 void OnTxDone(void) {

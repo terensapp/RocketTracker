@@ -166,6 +166,19 @@ CubeCell GPS's onboard battery connector is **JST-SH, 1.25mm pitch** — not the
 
 The Feather build solders a spring antenna directly to a pad. CubeCell GPS instead has a **u.FL/IPEX connector**, so you need a u.FL-compatible antenna (a direct-mount stub, or a u.FL-to-SMA pigtail plus a separate SMA antenna) rather than a solder-in one — see the BOM in the main README for a specific part.
 
+### Troubleshooting: receiver shows "Sats: 0 Fix: N"
+
+That just means the transmitter hasn't gotten a GPS fix yet, but that alone can't tell you whether the GPS chip is actually working. Open the Arduino Serial Monitor on the **transmitter** (not the receiver) at 115200 baud and check two things:
+
+1. **At boot**, before "Radio ready..." prints, the GPS library prints its own baud-detection log (`GPS Current baudrate detecting...` → `GPS Current baudrate detected: 9600` → `GPS baudrate updated to 9600`). If you see `GPS baudrate updated failed` instead, the chip isn't responding at the hardware level — that's a wiring/board problem, not a "needs more time" problem.
+2. **Every second**, the transmitter now also prints `GPS chars=<N> sentencesWithFix=<N> checksumFail=<N>`. If `chars` is stuck at 0, no data is arriving from the GPS chip at all (same hardware problem as above). If `chars` is counting up but `sentencesWithFix` stays at 0, the chip is working fine and just hasn't locked a fix — that's an antenna/sky-view/time problem, not a bug.
+
+If it's the second case, a few things worth knowing (from the Heltec community forum, multiple independent reports):
+
+- **First fix can take a long time** — one documented case took over an hour before the first fix, a few minutes on subsequent power-ons. This board has no backup battery for the GPS almanac (unlike the Feather build's optional CR1220), so it's plausible every power-cycle needs close to a full cold-start wait, not just the very first one. Give it real time (30+ minutes) outdoors before assuming something's wrong.
+- **It needs a genuinely open sky view.** Indoors, it may never get a fix no matter how long you wait.
+- **The onboard antenna has multiple independent reports of being weak** (or occasionally dead from the factory) on this specific board. If you've confirmed the chip is talking (case 2 above) and given it real time outdoors and it's still stuck, an external active GPS antenna via the board's GPS u.FL connector (separate from the LoRa one) is a documented fix others have used — see the "no GPS fix" threads on [community.heltec.cn](http://community.heltec.cn) if you land here.
+
 ### Case
 
 ![Preview of the CubeCell transmitter case](enclosures/transmitter_case_cubecell_preview.png)
