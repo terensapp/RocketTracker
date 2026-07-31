@@ -1,6 +1,7 @@
 /*
   ROCKET TRACKER - TRANSMITTER (CubeCell all-in-one alternative)
-  Version:  v3 - added live GPS/radio status on the onboard OLED.
+  Version:  v4 - display now toggles on/off via the board's user button,
+            instead of always being on, to save battery in flight.
   Board:    Heltec CubeCell GPS, HTCC-AB02S (ASR6502 MCU + SX1262 LoRa radio +
             onboard Air530Z GPS, all on one small board - no stacking headers)
   Role:     Alternative to rocket_transmitter/rocket_transmitter.ino for a
@@ -64,6 +65,19 @@
         the board's GPS u.FL connector (separate from the LoRa one) is a
         documented fix for others who hit this. See the Heltec community
         forum threads on "no GPS fix" for more if you land here.
+
+  ------------------------------------------------------------------------
+  OLED IS OFF BY DEFAULT - PRESS THE USER BUTTON TO CHECK STATUS
+    The screen draws real power, and this board isn't opened up between
+    launches to flip a switch, so it starts OFF at boot to save battery -
+    press the board's user button (labeled "PRG" on some silkscreens, wired
+    to pin P3_3 - confirmed against Heltec's own factory test sketch for
+    this board) once to turn it on, press again to turn it off. Good
+    routine: power the board on, wait a bit, press the button and confirm
+    "chip: OK" with a real fix before it goes in the rocket, then press
+    again to turn the screen off before closing up the case. It defaults
+    off on every fresh boot, not just the first one - the toggle state
+    itself isn't remembered across power cycles.
 
   ------------------------------------------------------------------------
   WHY THIS EXISTS / TRADE-OFFS VS. THE FEATHER M0 BUILD
@@ -155,6 +169,13 @@ extern SSD1306Wire display;
 // How often to send a GPS update
 #define TX_INTERVAL_MS 1000
 
+// User button that toggles the OLED on/off - see "OLED IS OFF BY DEFAULT"
+// above. Confirmed against Heltec's own Factory_Test_AB02S.ino, which reads
+// this same pin as a plain INPUT (not INPUT_PULLUP - this board already has
+// a hardware pull-up on it) and treats LOW as pressed.
+#define DISPLAY_TOGGLE_BUTTON_PIN P3_3
+#define BUTTON_DEBOUNCE_MS 50
+
 // ---------------------------------------------------------------------
 
 #pragma pack(push, 1)
@@ -181,6 +202,11 @@ volatile TxState_t txState = STATE_IDLE;
 uint32_t txSeq = 0;
 uint32_t lastTxMillis = 0;
 RocketPacket pendingPacket; // must stay alive until OnTxDone fires (async send)
+
+// OLED on/off toggle state - see "OLED IS OFF BY DEFAULT" above
+bool displayOn = false;
+bool buttonWasPressed = false;
+uint32_t lastButtonEdgeMillis = 0;
 
 // ---------------------------------------------------------------------
 // Battery
@@ -217,19 +243,11 @@ void setup() {
   Serial.print(" ");
   Serial.println(__TIME__);
 
-  // Power the OLED's rail and start it - same sequence as Heltec's own
-  // factory test sketch for this board. Vext LOW = powered on, despite how
-  // that reads; this is the documented convention on CubeCell boards.
-  pinMode(Vext, OUTPUT);
-  digitalWrite(Vext, LOW);
-  delay(100);
-  display.init();
-  display.setFont(ArialMT_Plain_10);
-  display.setTextAlignment(TEXT_ALIGN_LEFT);
-  display.clear();
-  display.drawString(0, 20, "Rocket transmitter");
-  display.drawString(0, 34, "booting...");
-  display.display();
+  // OLED starts OFF (see "OLED IS OFF BY DEFAULT" above) - just set up the
+  // button that toggles it. The display itself isn't touched until the
+  // first time it's turned on, so no power goes to the Vext rail at all
+  // until you actually ask for it.
+  pinMode(DISPLAY_TOGGLE_BUTTON_PIN, INPUT);
 
   GPS.begin();
 
@@ -248,6 +266,8 @@ void setup() {
 }
 
 void loop() {
+  checkDisplayButton();
+
   // Feed every available GPS byte into the parser continuously - same
   // non-blocking pattern as the Feather build's GPS_SERIAL loop.
   while (GPS.available() > 0) {
@@ -261,6 +281,45 @@ void loop() {
   }
 
   Radio.IrqProcess();
+}
+
+// ---------------------------------------------------------------------
+// OLED on/off button - see "OLED IS OFF BY DEFAULT" near the top of this
+// file for why this exists and how to use it.
+// ---------------------------------------------------------------------
+void checkDisplayButton() {
+  bool pressed = (digitalRead(DISPLAY_TOGGLE_BUTTON_PIN) == LOW);
+  uint32_t now = millis();
+
+  if (pressed != buttonWasPressed && (now - lastButtonEdgeMillis) > BUTTON_DEBOUNCE_MS) {
+    lastButtonEdgeMillis = now;
+    buttonWasPressed = pressed;
+    if (pressed) { // toggle on press, not release - feels more immediate
+      setDisplayOn(!displayOn);
+    }
+  }
+}
+
+void setDisplayOn(bool on) {
+  displayOn = on;
+
+  if (on) {
+    // Vext LOW = powered on, despite how that reads - documented
+    // convention on CubeCell boards. Re-init every time since the display
+    // is fully powered down (not just blanked) while off.
+    pinMode(Vext, OUTPUT);
+    digitalWrite(Vext, LOW);
+    delay(50);
+    display.init();
+    display.setFont(ArialMT_Plain_10);
+    display.setTextAlignment(TEXT_ALIGN_LEFT);
+    showStatus(); // draw immediately instead of waiting up to a second for the next packet
+  } else {
+    display.clear();
+    display.display();
+    display.stop(); // same call Heltec's own factory test sketch uses before sleep
+    pinMode(Vext, ANALOG); // let the rail float off - cuts real power, not just blanks the screen
+  }
 }
 
 void sendPacket() {
@@ -295,13 +354,17 @@ void sendPacket() {
   Serial.print(" checksumFail=");
   Serial.println(GPS.failedChecksum());
 
-  showStatus();
+  if (displayOn) {
+    showStatus();
+  }
 }
 
 // Shows the same diagnostic picture on the onboard OLED that the serial
 // log above prints - same idea, but readable with the board out on
 // battery power alone, no laptop needed. See the "SATS: 0 FIX: N" note
-// near the top of this file for what each field means.
+// near the top of this file for what each field means. Only called while
+// displayOn is true (see setDisplayOn()) - the display is fully powered
+// down otherwise, so touching it here would do nothing useful anyway.
 void showStatus() {
   bool gpsHasData = GPS.charsProcessed() > 10; // a few boot bytes don't
                                                 // count as "alive" yet

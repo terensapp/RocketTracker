@@ -170,7 +170,9 @@ The Feather build solders a spring antenna directly to a pad. CubeCell GPS inste
 
 That just means the transmitter hasn't gotten a GPS fix yet, but that alone can't tell you whether the GPS chip is actually working.
 
-**Easiest check: the transmitter's own onboard OLED.** It now shows live status with no laptop needed, so you can take the board outside on battery power alone and read it directly — no need to keep it tethered to a computer to test it outdoors. The second line reads `chip: NO DATA` (the GPS chip isn't sending anything — a wiring/board problem), `chip: searching` (chip's working fine, just hasn't locked a fix yet — an antenna/sky-view/time problem, not a bug), or `chip: OK` (has a fix). The screen also shows sats count, GPS char count, battery %, and the last packet sent.
+**Easiest check: the transmitter's own onboard OLED.** It shows live status with no laptop needed, so you can take the board outside on battery power alone and read it directly — no need to keep it tethered to a computer to test it outdoors. The second line reads `chip: NO DATA` (the GPS chip isn't sending anything — a wiring/board problem), `chip: searching` (chip's working fine, just hasn't locked a fix yet — an antenna/sky-view/time problem, not a bug), or `chip: OK` (has a fix). The screen also shows sats count, GPS char count, battery %, and the last packet sent.
+
+**The screen is off by default, to save battery** — press the board's user button (silkscreened "PRG" on some units) once to turn it on, press again to turn it off. Good pre-launch routine: power the board on, give the GPS a few minutes, press the button and confirm `chip: OK` with a real fix before it goes in the rocket, then press again to turn the screen off before closing up the case. It always starts off on a fresh boot — the on/off state itself isn't remembered across power cycles.
 
 If you'd rather use the Serial Monitor, open it on the **transmitter** (not the receiver) at 115200 baud and check the same two things the OLED is built from:
 
