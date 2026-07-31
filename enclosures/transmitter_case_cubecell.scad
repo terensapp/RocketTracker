@@ -58,9 +58,13 @@
 //   through the outer face sized only for the slide lever to poke through
 //   and travel in, and a wider, shallower pocket behind it (open to the
 //   battery bay's interior) sized to capture the switch body. The body
-//   can't pull out through the narrow outer slot, so a dab of glue on the
-//   body inside the pocket is enough to secure it - see the "Slide switch
-//   mount" parameters below for the dimensions, taken from the SS12D00-G4
+//   can't pull out through the narrow outer slot, and two small retention
+//   bumps (same idea as the lid's snap bumps, just smaller) protrude into
+//   the pocket from its top and bottom faces - the switch body has to press
+//   past them to seat, then they nest against its top/bottom face and hold
+//   it with a "click", no glue required (though a dab is still fine if you
+//   want extra insurance) - see the "Slide switch mount" parameters below
+//   for the dimensions, taken from the SS12D00-G4
 //   manufacturer drawing (body 8.7 x 3.7 x 3.7mm, lever 1.5 x 1.5 x 4mm).
 //   The 3-pin through-hole legs on the underside of that switch aren't used
 //   here - the switch is wired inline into the battery lead by hand, not
@@ -165,6 +169,18 @@ sw_pocket_depth = wall - sw_web; // how far the wide pocket cuts in from
                                   // just extends into the already-hollow
                                   // battery bay, no extra cut needed there
 
+// Retention bumps - two small nubs on the pocket's top and bottom faces,
+// same idea as the lid's snap bumps below: they protrude slightly into the
+// pocket cavity, so the switch body has to press past a bit of interference
+// to seat, then they nest against its top/bottom face and hold it in place
+// with a "click" - no glue required to keep it from rattling loose, though
+// a dab is still fine if you want extra insurance.
+sw_bump_r        = 0.8;
+sw_bump_protrude = 0.3;
+sw_bump_inset    = sw_bump_r - sw_bump_protrude;
+sw_bump_y        = sw_web + 0.4; // near the shoulder, so it clicks right as
+                                  // the switch bottoms out against the stop
+
 // ---------------------------------------------------------------------
 // Parachute/recovery tie tab
 // ---------------------------------------------------------------------
@@ -256,6 +272,14 @@ module base() {
       translate([0, 0, -1])
         cylinder(d = tie_hole_d, h = tie_tab_thick + 2, $fn = 24);
     }
+
+  // switch retention bumps - protrude into the pocket cavity cut above, so
+  // the switch body has to snap past them to seat. See the parameter block
+  // comment above for the reasoning.
+  translate([sw_mount_x, sw_bump_y, sw_mount_z + sw_pocket_h/2 + sw_bump_inset])
+    sphere(r = sw_bump_r, $fn = 16);
+  translate([sw_mount_x, sw_bump_y, sw_mount_z - sw_pocket_h/2 - sw_bump_inset])
+    sphere(r = sw_bump_r, $fn = 16);
 }
 
 // ==========================================================================
