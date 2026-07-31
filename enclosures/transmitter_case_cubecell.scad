@@ -154,9 +154,14 @@ divider_gap_h = 5.0; // gap above the divider for the battery's JST wire to
 // ---------------------------------------------------------------------
 usb_w = 10.0;
 usb_h = 5.0;
-usb_offset = 6.0; // distance from the electronics-bay side wall to the
-                   // near edge of the cutout - a centered guess; nudge to
-                   // match your board if it's off
+// usb_offset (distance from the electronics-bay side wall to the near edge
+// of the cutout) used to be a hardcoded guess of 6.0, which was noticeably
+// off-center - it's derived from elec_pocket_w down in "Derived layout"
+// instead now, so it's centered on the board's width by construction. Nudge
+// usb_center_bias below (not usb_offset directly) if your board's actual
+// USB port isn't centered on the board width.
+usb_center_bias = 0.0; // mm to shift the cutout off-center, + = toward the
+                        // battery/divider end
 
 // ---------------------------------------------------------------------
 // Antenna exit hole - see "WHERE THE ANTENNA EXITS" at the top of this file.
@@ -226,10 +231,25 @@ case_l = elec_bay_l + divider_w + batt_bay_l;
 case_w = max(elec_pocket_w, batt_pocket_w) + wall * 2;
 case_h = floor + max(pocket_h, batt_t + batt_fit) + lip_h;
 
+// USB cutout, centered on the electronics bay's width by construction
+// instead of the old hardcoded guess (see the comment up in the USB
+// params block)
+usb_offset = (elec_pocket_w - usb_w) / 2 + usb_center_bias;
+
+// battery's height envelope, measured up from the floor - the electronics
+// bay is what actually drives case_h (its board+clearance stack is taller
+// than the battery), which leaves real headroom above the battery in the
+// battery bay specifically. The switch mount uses that headroom instead of
+// centering in the full case height, which used to put it low enough to
+// overlap the battery by about 0.85mm and block it from sliding fully in.
+batt_top_z = floor + batt_t + batt_fit;
+
 // switch mount position - centered along the battery bay's length, and
-// centered in the wall's height between the floor and the lip
+// centered in the headroom between the top of the battery and the lip
+// (see batt_top_z above) instead of the full case height, so it can't
+// collide with the battery no matter how the other dimensions change
 sw_mount_x = elec_bay_l + divider_w + batt_pocket_l / 2;
-sw_mount_z = floor + (case_h - lip_h - floor) / 2;
+sw_mount_z = batt_top_z + ((case_h - lip_h) - batt_top_z) / 2;
 
 // height (in the base's coordinates) the lid's snap bumps reach when the
 // lid is fully seated - the bumps sit at the vertical midpoint of the
