@@ -1,6 +1,6 @@
 /*
   ROCKET TRACKER - TRANSMITTER (CubeCell all-in-one alternative)
-  Version:  v2 - added GPS diagnostic counters to the serial log.
+  Version:  v3 - added live GPS/radio status on the onboard OLED.
   Board:    Heltec CubeCell GPS, HTCC-AB02S (ASR6502 MCU + SX1262 LoRa radio +
             onboard Air530Z GPS, all on one small board - no stacking headers)
   Role:     Alternative to rocket_transmitter/rocket_transmitter.ino for a
@@ -18,8 +18,14 @@
          library, or a dead chip).
       2. The GPS chip is working fine and receiving satellite signal, it
          just hasn't locked a fix yet - completely normal for a while.
-    Open the Arduino Serial Monitor on the TRANSMITTER (not the receiver)
-    at 115200 baud and check two things:
+
+    EASIEST WAY TO CHECK: the transmitter's own onboard OLED now shows this
+    live (see showStatus() near the bottom) - no laptop needed, so you can
+    just take the board outside on battery power and read it directly. The
+    second line says "chip: NO DATA" (case 1), "chip: searching" (case 2 -
+    working, no fix yet), or "chip: OK" (has a fix). If you'd rather use
+    the Serial Monitor instead, open it on the TRANSMITTER (not the
+    receiver) at 115200 baud and check the same two things it's built from:
 
     A) At boot, before "Radio ready..." prints, the GPS library itself
        prints its own baud-detection log:
@@ -123,6 +129,15 @@
 
 #include "LoRaWan_APP.h"
 #include "GPS_Air530Z.h"
+#include "HT_SSD1306Wire.h"
+
+// This board has a 0.96" 128x64 OLED built in - `display` is declared
+// extern here and defined inside the CubeCell board package itself (not
+// something this sketch constructs), same as Heltec's own factory test
+// sketch for this board. Used below to show live GPS/radio status without
+// needing a laptop tethered to the Serial Monitor - handy for bench-testing
+// outdoors on battery power alone. See showStatus() near the bottom.
+extern SSD1306Wire display;
 
 // ---------------------------------------------------------------------
 // CONFIGURE ME
@@ -202,6 +217,20 @@ void setup() {
   Serial.print(" ");
   Serial.println(__TIME__);
 
+  // Power the OLED's rail and start it - same sequence as Heltec's own
+  // factory test sketch for this board. Vext LOW = powered on, despite how
+  // that reads; this is the documented convention on CubeCell boards.
+  pinMode(Vext, OUTPUT);
+  digitalWrite(Vext, LOW);
+  delay(100);
+  display.init();
+  display.setFont(ArialMT_Plain_10);
+  display.setTextAlignment(TEXT_ALIGN_LEFT);
+  display.clear();
+  display.drawString(0, 20, "Rocket transmitter");
+  display.drawString(0, 34, "booting...");
+  display.display();
+
   GPS.begin();
 
   RadioEvents.TxDone = OnTxDone;
@@ -265,6 +294,40 @@ void sendPacket() {
   Serial.print(GPS.sentencesWithFix());
   Serial.print(" checksumFail=");
   Serial.println(GPS.failedChecksum());
+
+  showStatus();
+}
+
+// Shows the same diagnostic picture on the onboard OLED that the serial
+// log above prints - same idea, but readable with the board out on
+// battery power alone, no laptop needed. See the "SATS: 0 FIX: N" note
+// near the top of this file for what each field means.
+void showStatus() {
+  bool gpsHasData = GPS.charsProcessed() > 10; // a few boot bytes don't
+                                                // count as "alive" yet
+
+  display.clear();
+
+  String line0 = "Fix:" + String(pendingPacket.fixValid ? "Y" : "N") +
+                 " Sats:" + String(pendingPacket.sats);
+  display.drawString(0, 0, line0);
+
+  String gpsHealth = !gpsHasData                     ? "chip: NO DATA"
+                    : (GPS.sentencesWithFix() == 0)   ? "chip: searching"
+                                                       : "chip: OK";
+  display.drawString(0, 13, gpsHealth);
+
+  display.drawString(0, 26, "chars:" + String(GPS.charsProcessed()));
+
+  display.drawString(0, 39, "batt:" + String(pendingPacket.battPercent) +
+                             "%  tx:#" + String(pendingPacket.seq));
+
+  String line4 = pendingPacket.fixValid
+    ? (String(pendingPacket.lat, 4) + "," + String(pendingPacket.lon, 4))
+    : String("no fix yet");
+  display.drawString(0, 52, line4);
+
+  display.display();
 }
 
 void OnTxDone(void) {

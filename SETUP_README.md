@@ -168,10 +168,14 @@ The Feather build solders a spring antenna directly to a pad. CubeCell GPS inste
 
 ### Troubleshooting: receiver shows "Sats: 0 Fix: N"
 
-That just means the transmitter hasn't gotten a GPS fix yet, but that alone can't tell you whether the GPS chip is actually working. Open the Arduino Serial Monitor on the **transmitter** (not the receiver) at 115200 baud and check two things:
+That just means the transmitter hasn't gotten a GPS fix yet, but that alone can't tell you whether the GPS chip is actually working.
+
+**Easiest check: the transmitter's own onboard OLED.** It now shows live status with no laptop needed, so you can take the board outside on battery power alone and read it directly — no need to keep it tethered to a computer to test it outdoors. The second line reads `chip: NO DATA` (the GPS chip isn't sending anything — a wiring/board problem), `chip: searching` (chip's working fine, just hasn't locked a fix yet — an antenna/sky-view/time problem, not a bug), or `chip: OK` (has a fix). The screen also shows sats count, GPS char count, battery %, and the last packet sent.
+
+If you'd rather use the Serial Monitor, open it on the **transmitter** (not the receiver) at 115200 baud and check the same two things the OLED is built from:
 
 1. **At boot**, before "Radio ready..." prints, the GPS library prints its own baud-detection log (`GPS Current baudrate detecting...` → `GPS Current baudrate detected: 9600` → `GPS baudrate updated to 9600`). If you see `GPS baudrate updated failed` instead, the chip isn't responding at the hardware level — that's a wiring/board problem, not a "needs more time" problem.
-2. **Every second**, the transmitter now also prints `GPS chars=<N> sentencesWithFix=<N> checksumFail=<N>`. If `chars` is stuck at 0, no data is arriving from the GPS chip at all (same hardware problem as above). If `chars` is counting up but `sentencesWithFix` stays at 0, the chip is working fine and just hasn't locked a fix — that's an antenna/sky-view/time problem, not a bug.
+2. **Every second**, the transmitter also prints `GPS chars=<N> sentencesWithFix=<N> checksumFail=<N>`. If `chars` is stuck at 0, no data is arriving from the GPS chip at all (same hardware problem as above). If `chars` is counting up but `sentencesWithFix` stays at 0, the chip is working fine and just hasn't locked a fix — that's an antenna/sky-view/time problem, not a bug.
 
 If it's the second case, a few things worth knowing (from the Heltec community forum, multiple independent reports):
 

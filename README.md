@@ -61,7 +61,7 @@ You only need one N30 for the receiver — the Amazon listing sells them as a 2-
 
 ### Alternative transmitter: CubeCell GPS (smaller form factor)
 
-If the Feather M0 stack is too tall to fit your airframe, `rocket_transmitter_cubecell/rocket_transmitter_cubecell.ino` is an alternative transmitter sketch for the **Heltec CubeCell GPS (HTCC-AB02S)** — one small board with the MCU, LoRa radio, and GPS all built in, instead of three stacked boards. It sends the exact same packet format, so it works with the **same receiver sketch, unmodified**. See "Alternative build: CubeCell GPS" in [`SETUP_README.md`](SETUP_README.md) for the full picture, including a phaseout-status warning you should read before buying the board.
+If the Feather M0 stack is too tall to fit your airframe, `rocket_transmitter_cubecell/rocket_transmitter_cubecell.ino` is an alternative transmitter sketch for the **Heltec CubeCell GPS (HTCC-AB02S)** — one small board with the MCU, LoRa radio, and GPS all built in, instead of three stacked boards. It sends the exact same packet format, so it works with the **same receiver sketch, unmodified**. This board also has a small onboard OLED, which this sketch uses to show live GPS/radio status (fix, satellite count, battery, last packet sent) — handy for bench-testing outdoors on battery power without a laptop tethered for the Serial Monitor. See "Alternative build: CubeCell GPS" in [`SETUP_README.md`](SETUP_README.md) for the full picture, including a phaseout-status warning you should read before buying the board.
 
 | Part | Price | Link |
 | --- | --- | --- |
