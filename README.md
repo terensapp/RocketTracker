@@ -68,6 +68,7 @@ If the Feather M0 stack is too tall to fit your airframe, `rocket_transmitter_cu
 | Heltec CubeCell GPS-6502 (HTCC-AB02S) | ~$25.80–25.90 | [heltec.org/project/htcc-ab02s](https://heltec.org/project/htcc-ab02s/) |
 | 3.7V 300mAh LiPo, "302040" size — **check the connector**: this board uses JST-SH 1.25mm pitch, not the JST-PH 2.0mm pitch on the Feather build | ~$7-9 | generic |
 | u.FL/IPEX stub antenna, 902-928MHz, 3dBi, direct-mount (no pigtail needed) | $6.49 | [DigiKey #1173-1023-ND](https://www.digikey.com/en/products/detail/ttm-technologies-inc/66089-0906/3069145) |
+| SS12D00-G4 mini slide switch, spliced inline into the battery lead — a common generic part, search that name on Amazon/AliExpress/eBay; the case's switch pocket is sized to its body/lever dimensions (see `SETUP_README.md`) | ~$3-6 for a pack | generic |
 | Micro USB cable, for flashing | — | any micro USB cable |
 
 `enclosures/transmitter_case_cubecell.scad` is the matching case — same snap-lid-and-glue closure and parachute tie tab as the Feather case, but noticeably shallower since there's no board stack to clear.

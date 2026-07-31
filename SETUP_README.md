@@ -170,7 +170,13 @@ The Feather build solders a spring antenna directly to a pad. CubeCell GPS inste
 
 ![Preview of the CubeCell transmitter case](enclosures/transmitter_case_cubecell_preview.png)
 
-`enclosures/transmitter_case_cubecell.scad` follows the same conventions as the Feather case: snap-lid-and-glue closure, a parachute tie tab, an inline power switch cutout. Two things are different because the hardware is different: there's no verified mounting-hole spec published for this board, so the case relies on a snug pocket fit rather than screw posts (see the comment in the file); and the antenna hole is cut through the **top of the lid** rather than a side wall, sized generously and centered, since a u.FL pigtail is flexible enough to reach an opening almost anywhere above the board — a deliberate choice to avoid guessing a tight side-wall position from an unverified connector location. As always: print the base first, test-fit your actual board and battery before printing the lid.
+`enclosures/transmitter_case_cubecell.scad` follows the same conventions as the Feather case: snap-lid-and-glue closure and a parachute tie tab. Three things are different because the hardware is different:
+
+- **No verified mounting-hole spec** is published for this board, so the case relies on a snug pocket fit rather than screw posts (see the comment in the file).
+- **The antenna hole is cut through the top of the lid** rather than a side wall, sized generously and centered, since a u.FL pigtail is flexible enough to reach an opening almost anywhere above the board — a deliberate choice to avoid guessing a tight side-wall position from an unverified connector location.
+- **The inline power switch mount is sized for a specific part** — an **SS12D00-G4** mini slide switch (body 8.7 x 3.7 x 3.7mm, lever 1.5 x 1.5 x 4mm, from the manufacturer's dimensioned drawing) — instead of a generic guessed cutout. It's a keyed pocket on the battery bay's front wall, centered along that bay's length: a narrow outer slot only the slide lever pokes through, and a wider pocket behind it (open to the battery bay's interior) that captures the switch body, so it can't pull back out through the narrow slot. It's positioned away from the tie tab on purpose — an earlier version of this case put the switch cutout on the tie tab's end wall, which looked like a stray hole and weakened the same wall the tie tab needs to stay solid. If you use a different slide switch, resize `sw_body_l` / `sw_body_w` / `sw_body_h` / `sw_lever_w` at the top of the file to match its drawing.
+
+As always: print the base first, test-fit your actual board, battery, and switch before printing the lid.
 
 ## Packet format (for reference, if you want to extend this later)
 

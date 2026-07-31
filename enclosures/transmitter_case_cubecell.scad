@@ -4,10 +4,10 @@
 // Holds: Heltec CubeCell GPS, HTCC-AB02S (one board - MCU, SX1262 LoRa radio,
 // GPS, and OLED all integrated, no stacking), a 3.7V 300mAh LiPo (generic
 // "302040" size), a hole for a u.FL/IPEX antenna pigtail to exit, and a
-// panel-mount cutout for an inline power switch spliced into the battery
-// lead. This is the companion case for rocket_transmitter_cubecell.ino - see
-// enclosures/transmitter_case.scad instead if you're building the Feather M0
-// version (three-board stack, spring antenna soldered direct).
+// keyed pocket that holds an SS12D00-G4 slide switch spliced into the
+// battery lead. This is the companion case for rocket_transmitter_cubecell.ino
+// - see enclosures/transmitter_case.scad instead if you're building the
+// Feather M0 version (three-board stack, spring antenna soldered direct).
 //
 // WHY THIS IS SMALLER: the Feather M0 build stacks three boards (M0 + GPS
 // FeatherWing + battery) with headroom between them for header pins and a
@@ -46,6 +46,28 @@
 //   opening almost anywhere above the board. Nudge `ant_hole_x_frac` /
 //   `ant_hole_y_frac` below if your test-fit shows the connector is
 //   noticeably off-center, but don't assume you need to before checking.
+//
+// WHERE THE SWITCH LIVES
+//   The switch mount is a keyed pocket in the battery bay's front wall (the
+//   long wall at y=0), centered along that bay's length - not on the end
+//   wall the tie tab is bolted to. Earlier versions of this case put a
+//   switch cutout on that end wall, right next to the tie tab, which looked
+//   like a stray unexplained hole and put a hole through the same wall the
+//   tie tab has to stay solid for. Moving it to the battery bay's side wall
+//   fixes both problems. The pocket is two nested cuts: a narrow slot
+//   through the outer face sized only for the slide lever to poke through
+//   and travel in, and a wider, shallower pocket behind it (open to the
+//   battery bay's interior) sized to capture the switch body. The body
+//   can't pull out through the narrow outer slot, so a dab of glue on the
+//   body inside the pocket is enough to secure it - see the "Slide switch
+//   mount" parameters below for the dimensions, taken from the SS12D00-G4
+//   manufacturer drawing (body 8.7 x 3.7 x 3.7mm, lever 1.5 x 1.5 x 4mm).
+//   The 3-pin through-hole legs on the underside of that switch aren't used
+//   here - the switch is wired inline into the battery lead by hand, not
+//   soldered to a PCB, so only the body and lever envelope matter for the
+//   case. `sw_travel` is an assumed slide throw, not from the drawing (which
+//   doesn't dimension it) - test-fit and adjust if your switch's actual
+//   throw differs.
 // ==========================================================================
 
 part = "both"; // "base", "lid", or "both" (preview only)
@@ -119,11 +141,29 @@ ant_hole_x_frac = 0.6; // 0 = USB end, 1 = battery/divider end - biased
 ant_hole_y_frac = 0.5; // 0.5 = centered across the board's width
 
 // ---------------------------------------------------------------------
-// Inline power switch cutout (same idea as the Feather case - a panel-mount
-// slide switch spliced into the battery's JST lead)
+// Slide switch mount - SS12D00-G4, spliced inline into the battery's JST
+// lead. Dimensions from the manufacturer's dimensioned drawing - see
+// "WHERE THE SWITCH LIVES" above for how the pocket geometry uses them.
 // ---------------------------------------------------------------------
-sw_l = 13.0;
-sw_w = 6.5;
+sw_body_l  = 8.7;  // switch body length (along the slide axis)
+sw_body_w  = 3.7;  // switch body depth (the dimension going into the wall)
+sw_body_h  = 3.7;  // switch body height
+sw_lever_w = 1.5;  // slide lever width, from the drawing
+sw_travel  = 3.5;  // assumed slide throw - not on the drawing, test-fit
+sw_fit     = 0.3;  // clearance added around the body pocket
+sw_web     = 1.0;  // solid material left at the outer face around the
+                    // lever slot, so the body pocket stays a captured,
+                    // shouldered cut instead of an open hole to outside
+
+sw_slot_l   = sw_lever_w + sw_travel + sw_fit * 2; // outer slot, lever only
+sw_slot_h   = sw_lever_w + sw_fit * 2;
+sw_pocket_l = sw_body_l + sw_fit * 2;               // inner pocket, body
+sw_pocket_h = sw_body_h + sw_fit * 2;
+sw_pocket_depth = wall - sw_web; // how far the wide pocket cuts in from
+                                  // the inner wall face toward outside -
+                                  // whatever's left of the body's depth
+                                  // just extends into the already-hollow
+                                  // battery bay, no extra cut needed there
 
 // ---------------------------------------------------------------------
 // Parachute/recovery tie tab
@@ -147,7 +187,10 @@ case_l = elec_bay_l + divider_w + batt_bay_l;
 case_w = max(elec_pocket_w, batt_pocket_w) + wall * 2;
 case_h = floor + max(pocket_h, batt_t + batt_fit) + lip_h;
 
-sw_z0 = floor + (case_h - lip_h - floor - sw_l) / 2;
+// switch mount position - centered along the battery bay's length, and
+// centered in the wall's height between the floor and the lip
+sw_mount_x = elec_bay_l + divider_w + batt_pocket_l / 2;
+sw_mount_z = floor + (case_h - lip_h - floor) / 2;
 
 echo(str("Case outer footprint: ", case_l, " x ", case_w, " x ", case_h, " mm"));
 
@@ -185,11 +228,23 @@ module base() {
     translate([-1, wall + usb_offset, floor + pocket_h/2 - usb_h/2])
       cube([wall + 2, usb_w, usb_h]);
 
-    // inline switch cutout on the battery bay's outer end (far) wall
-    translate([case_l - wall - 1,
-               wall + (batt_pocket_w - sw_w) / 2,
-               sw_z0])
-      cube([wall + 2, sw_w, sw_l]);
+    // slide switch mount, on the battery bay's front (y=0) wall - see
+    // "WHERE THE SWITCH LIVES" at the top of this file. Two nested cuts:
+
+    // (1) wide pocket for the switch body, cut from the inner wall face
+    // toward outside, open to the battery bay's hollow interior so pins/
+    // wires are reachable and stopping short of the outer face by sw_web
+    translate([sw_mount_x - sw_pocket_l / 2,
+               wall - sw_pocket_depth,
+               sw_mount_z - sw_pocket_h / 2])
+      cube([sw_pocket_l, sw_pocket_depth + 1, sw_pocket_h]);
+
+    // (2) narrow slot through the remaining outer web, for the lever only -
+    // narrower than the body pocket above, so the body can't pull through it
+    translate([sw_mount_x - sw_slot_l / 2,
+               -1,
+               sw_mount_z - sw_slot_h / 2])
+      cube([sw_slot_l, sw_web + 1, sw_slot_h]);
   }
 
   // parachute/recovery tie tab - same self-correcting formula as the
