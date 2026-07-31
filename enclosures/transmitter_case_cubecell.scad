@@ -19,7 +19,11 @@
 //
 // CLOSURE / RECOVERY: same snap-lid-and-glue closure and parachute tie tab
 // as the Feather case - see that file's header comment for the reasoning,
-// not repeated here.
+// not repeated here. One difference: this case's snap bumps also have a
+// matching detent dimple cut into the base's lip cavity for each one to
+// seat into (see `bump_groove_r` below) - the Feather case's bumps just
+// press against a flat wall, which is fine there but wasn't giving a
+// reliable click on this smaller case, so a real detent was added here.
 //
 // HOW TO USE THIS FILE
 //   1. Open in OpenSCAD (openscad.org - free, all platforms).
@@ -119,7 +123,26 @@ lip_h  = 3.0;
 lip_gap = 0.3;
 
 bump_r        = 1.5;
-bump_protrude = 0.35;
+bump_protrude = 0.5;  // was 0.35 - too little net interference to feel a
+                       // real click (see bump_groove_r below for why)
+
+// The lid's bumps used to just press against a flat wall inside the base's
+// lip cavity - friction only, no matching detent for them to fall into.
+// The net interference was also tiny (bump_protrude=0.35 vs a lip_gap=0.3
+// clearance the bump has to close first, leaving only ~0.05mm of actual
+// squeeze) - not enough to reliably feel a click once real print tolerance
+// is factored in, so the lid could seat without ever positively locking.
+// Fix: small dimples cut into the lip cavity wall, one per bump, at the
+// exact height the bump reaches when the lid is fully seated (lip_bump_z
+// below). The bump rubs against the flat wall the whole way down, then
+// relaxes into the dimple right as the lid bottoms out - that relief is
+// the click, and climbing back out of the dimple is what gives it real
+// pull-off resistance instead of just friction.
+bump_groove_r     = 1.1;
+bump_groove_depth = 0.65; // how far the dimple recesses into the wall -
+                           // comfortably more than bump_protrude so the
+                           // bump can fully relax into it
+bump_groove_inset = bump_groove_r - bump_groove_depth;
 
 divider_w = 2.0;
 divider_gap_h = 5.0; // gap above the divider for the battery's JST wire to
@@ -208,6 +231,13 @@ case_h = floor + max(pocket_h, batt_t + batt_fit) + lip_h;
 sw_mount_x = elec_bay_l + divider_w + batt_pocket_l / 2;
 sw_mount_z = floor + (case_h - lip_h - floor) / 2;
 
+// height (in the base's coordinates) the lid's snap bumps reach when the
+// lid is fully seated - the bumps sit at the vertical midpoint of the
+// skirt (see skirt_z_mid in the lid module below, which is symmetric by
+// construction), and the skirt's fully-seated position bottoms out
+// lip_gap above the cavity floor, so the midpoint lands here
+lip_bump_z = case_h - (lip_h - lip_gap) / 2;
+
 echo(str("Case outer footprint: ", case_l, " x ", case_w, " x ", case_h, " mm"));
 
 // ==========================================================================
@@ -227,6 +257,19 @@ module base() {
           cube([case_l - wall*2, case_w - wall*2, lip_h + 2]);
       }
     }
+
+    // snap-groove dimples in the lip cavity walls, one per lid bump (see
+    // the comment on bump_groove_r above) - matches the 4 bump positions
+    // in the lid module below (2 centered on each long wall, 2 centered
+    // on each short wall)
+    translate([wall - bump_groove_inset, case_w/2, lip_bump_z])
+      sphere(r = bump_groove_r, $fn = 16);
+    translate([case_l - wall + bump_groove_inset, case_w/2, lip_bump_z])
+      sphere(r = bump_groove_r, $fn = 16);
+    translate([case_l/2, wall - bump_groove_inset, lip_bump_z])
+      sphere(r = bump_groove_r, $fn = 16);
+    translate([case_l/2, case_w - wall + bump_groove_inset, lip_bump_z])
+      sphere(r = bump_groove_r, $fn = 16);
 
     // hollow out electronics bay
     translate([wall, wall, floor])
