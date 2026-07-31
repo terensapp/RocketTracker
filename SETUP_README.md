@@ -82,6 +82,17 @@ The web page also draws a running graph of height-above-pad for the whole flight
 
 The receiver keeps up to 30 minutes of altitude history per flight (one point per second, ~7KB of RAM — this board has hundreds of KB free, so it's not a real constraint). If a flight somehow runs past that, new points stop recording rather than erasing the earlier ones, so you still keep the actual ascent/descent profile instead of losing it.
 
+## GPS precision
+
+Both the OLED and the web page now show **HDOP** (horizontal dilution of precision) next to the fix — this is the actual accuracy number, separate from "has a fix" or satellite count. A GPS can report a valid fix with 9 satellites and still be wandering around by 10-20m if those 9 satellites are all bunched up in one part of the sky (poor geometry = high HDOP); the same fix with fewer, better-spread satellites can be accurate to a couple meters (low HDOP). Rough guide: under 2 is good, 2-5 is usable, over 5 means treat the position as a rough estimate even though it says "fix."
+
+If HDOP is consistently high (readings feel imprecise even with a solid fix), a few things actually move the needle, roughly in order of impact:
+
+- **Antenna quality.** By far the biggest lever, and worth trying first. The CubeCell build's onboard antenna specifically has multiple independent reports (Heltec's own community forum) of being weak — see the "no GPS fix" troubleshooting section above. A cheap external active GPS antenna, wired to the board's dedicated GPS u.FL connector, directly improves signal-to-noise, which directly improves HDOP, not just whether you get a fix at all. The Feather build's Ultimate GPS FeatherWing has a much better stock antenna, so this matters more for the CubeCell alternative.
+- **Sky view.** Partial obstruction (trees, buildings, being near a window rather than fully outside) doesn't just delay a fix, it degrades it — reflected/multipath signal is a major source of position error. Test somewhere with a clear view of as much sky as possible.
+- **Let it settle.** Position accuracy typically keeps improving for a minute or two after a GPS first reports "fix" — it's still locking onto more satellites and refining its solution. If you check HDOP the moment "Fix:Y" first appears, give it another minute or two before judging.
+- **Altitude is inherently less precise than lat/lon**, for any single-frequency consumer GPS — commonly off by 30-50 feet regardless of HDOP or antenna (see the "Altitude" section above). This isn't something a better setup meaningfully fixes; it's a physical limitation of the GPS technique itself.
+
 ## Battery status
 
 The transmitter's battery level shows up on the receiver's screen and web page ("TX Batt: 82%"), so you can check "is there plenty of charge for this flight" before you walk out to the pad. The Feather M0 measures its own LiPo voltage (built into the board, no extra hardware) and rides it along in every LoRa packet it already sends once a second — this works from the moment it powers on, even before GPS gets a fix, since it doesn't depend on GPS at all.
@@ -201,7 +212,7 @@ As always: print the base first, test-fit your actual board, battery, and switch
 
 ## Packet format (for reference, if you want to extend this later)
 
-Both sketches share this 19-byte struct — keep them in sync if you add fields:
+Both transmitter sketches and the receiver share this 23-byte struct — keep all three in sync if you add fields:
 
 ```c
 struct RocketPacket {
@@ -209,6 +220,8 @@ struct RocketPacket {
   float    lat;
   float    lon;
   float    alt_m;
+  float    hdop;          // horizontal dilution of precision - lower is
+                           // better geometry/accuracy; 99.9 = not reported yet
   uint8_t  sats;
   uint8_t  fixValid;     // 1 = GPS fix valid, 0 = no fix yet
   uint8_t  battPercent;  // transmitter's own battery estimate, 0-100

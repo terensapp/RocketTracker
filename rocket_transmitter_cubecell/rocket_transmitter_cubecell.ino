@@ -1,7 +1,7 @@
 /*
   ROCKET TRACKER - TRANSMITTER (CubeCell all-in-one alternative)
-  Version:  v4 - display now toggles on/off via the board's user button,
-            instead of always being on, to save battery in flight.
+  Version:  v5 - added HDOP (fix quality) to the packet and the OLED,
+            so you can see WHY a reading is off, not just that you have one.
   Board:    Heltec CubeCell GPS, HTCC-AB02S (ASR6502 MCU + SX1262 LoRa radio +
             onboard Air530Z GPS, all on one small board - no stacking headers)
   Role:     Alternative to rocket_transmitter/rocket_transmitter.ino for a
@@ -135,10 +135,13 @@
     float    lat         - degrees
     float    lon         - degrees
     float    alt_m       - meters
+    float    hdop        - horizontal dilution of precision, lower = better
+                            geometry/accuracy (under ~2 is good, over ~5 is
+                            poor) - 99.9 means the GPS hasn't reported one yet
     uint8_t  sats        - number of satellites used in fix
     uint8_t  fixValid    - 1 = GPS has a valid fix this packet, 0 = no fix yet
     uint8_t  battPercent - this board's own LiPo charge estimate, 0-100
-  Total size: 19 bytes.
+  Total size: 23 bytes.
 */
 
 #include "LoRaWan_APP.h"
@@ -184,6 +187,7 @@ struct RocketPacket {
   float    lat;
   float    lon;
   float    alt_m;
+  float    hdop;
   uint8_t  sats;
   uint8_t  fixValid;
   uint8_t  battPercent;
@@ -201,7 +205,10 @@ volatile TxState_t txState = STATE_IDLE;
 
 uint32_t txSeq = 0;
 uint32_t lastTxMillis = 0;
-RocketPacket pendingPacket; // must stay alive until OnTxDone fires (async send)
+// must stay alive until OnTxDone fires (async send) - hdop starts at the
+// same 99.9 sentinel sendPacket() uses, so showStatus() doesn't show a
+// misleadingly "great" 0.0 HDOP before the first real reading comes in
+RocketPacket pendingPacket = {0, 0.0f, 0.0f, 0.0f, 99.9f, 0, 0, 0};
 
 // OLED on/off toggle state - see "OLED IS OFF BY DEFAULT" above
 bool displayOn = false;
@@ -328,6 +335,11 @@ void sendPacket() {
   pendingPacket.lat = pendingPacket.fixValid ? (float)GPS.location.lat() : 0.0f;
   pendingPacket.lon = pendingPacket.fixValid ? (float)GPS.location.lng() : 0.0f;
   pendingPacket.alt_m = GPS.altitude.isValid() ? (float)GPS.altitude.meters() : 0.0f;
+  // 99.9 is a deliberately-bad sentinel, not a real reading - GSA sentences
+  // (which carry HDOP) can lag behind the first fix by a few seconds, so
+  // this avoids ever claiming a fake "great" 0.0 HDOP before the GPS has
+  // actually reported one.
+  pendingPacket.hdop = GPS.hdop.isValid() ? (float)GPS.hdop.hdop() : 99.9f;
   pendingPacket.sats = GPS.satellites.isValid() ? (uint8_t)GPS.satellites.value() : 0;
   pendingPacket.battPercent = batteryPercentFromVoltage(getBatteryVoltage() / 1000.0f);
 
@@ -345,6 +357,8 @@ void sendPacket() {
   Serial.print(pendingPacket.lon, 6);
   Serial.print(" sats=");
   Serial.print(pendingPacket.sats);
+  Serial.print(" hdop=");
+  Serial.print(pendingPacket.hdop, 1);
   Serial.print(" batt=");
   Serial.print(pendingPacket.battPercent);
   Serial.print("% | GPS chars=");
@@ -380,7 +394,15 @@ void showStatus() {
                                                        : "chip: OK";
   display.drawString(0, 13, gpsHealth);
 
-  display.drawString(0, 26, "chars:" + String(GPS.charsProcessed()));
+  // HDOP quality label - rough, standard GPS convention: under 2 is good
+  // geometry, 2-5 is usable but not great, over 5 means don't trust the fix
+  // for anything precise. This is the number to watch if a fix "seems a
+  // little off" - it directly answers whether the satellite geometry
+  // right now supports a precise reading, separate from just having sats.
+  String hdopLabel = pendingPacket.hdop < 2.0f ? "good"
+                    : pendingPacket.hdop < 5.0f ? "ok"
+                                                 : "poor";
+  display.drawString(0, 26, "HDOP:" + String(pendingPacket.hdop, 1) + " (" + hdopLabel + ")");
 
   display.drawString(0, 39, "batt:" + String(pendingPacket.battPercent) +
                              "%  tx:#" + String(pendingPacket.seq));

@@ -1,6 +1,6 @@
 /*
   ROCKET TRACKER - RECEIVER
-  Version: v8 - pushed 2026-07-27 02:07 UTC. This is when the source itself
+  Version: v9 - pushed 2026-07-31 16:40 UTC. This is when the source itself
            was last changed - update it whenever this file changes. It's
            deliberately separate from the "Firmware built" timestamp printed
            to Serial at boot, which only tells you when THAT PARTICULAR
@@ -33,9 +33,9 @@
   clone boards occasionally shift a pin or two.
 
   PACKET FORMAT (must match the transmitter sketch exactly):
-    uint32_t seq, float lat, float lon, float alt_m, uint8_t sats, uint8_t fixValid,
-    uint8_t battPercent
-    Total size: 19 bytes.
+    uint32_t seq, float lat, float lon, float alt_m, float hdop, uint8_t sats,
+    uint8_t fixValid, uint8_t battPercent
+    Total size: 23 bytes.
 */
 
 #include <RadioLib.h>
@@ -107,6 +107,8 @@ struct RocketPacket {
   float    lat;
   float    lon;
   float    alt_m;
+  float    hdop;          // horizontal dilution of precision - lower is
+                           // better geometry/accuracy; 99.9 = not reported yet
   uint8_t  sats;
   uint8_t  fixValid;
   uint8_t  battPercent;  // transmitter's own LiPo charge estimate, 0-100
@@ -122,7 +124,7 @@ void onLoraReceive() {
   loraFlag = true;
 }
 
-RocketPacket lastPacket = {0, 0.0f, 0.0f, 0.0f, 0, 0};
+RocketPacket lastPacket = {0, 0.0f, 0.0f, 0.0f, 99.9f, 0, 0, 0};
 bool haveEverReceived = false;
 uint32_t lastRxMillis = 0;
 uint32_t packetsReceived = 0;
@@ -282,7 +284,9 @@ void handleLoraPacket() {
   Serial.print(F(" lon="));
   Serial.print(lastPacket.lon, 6);
   Serial.print(F(" sats="));
-  Serial.println(lastPacket.sats);
+  Serial.print(lastPacket.sats);
+  Serial.print(F(" hdop="));
+  Serial.println(lastPacket.hdop, 1);
 
   drawStatus();
 }
@@ -402,12 +406,16 @@ void drawStatus() {
     uint32_t ageMs = millis() - lastRxMillis;
     bool stale = ageMs > STALE_AFTER_MS;
 
-    snprintf(line, sizeof(line), "Sats:%d Fix:%s%s", lastPacket.sats,
-             lastPacket.fixValid ? "Y" : "N", stale ? "!" : "");
+    // Abbreviated (S:/F:/H: instead of Sats:/Fix:/HDOP:) to leave room for
+    // all three on one row at this font size - the web page spells them out
+    // in full. HDOP is the number to watch if a fix seems imprecise: under
+    // 2 is good satellite geometry, over 5 means don't trust it for
+    // anything precise even though it says "fix". The old "Xs ago" reading
+    // that used to share this row moved to the web page only - the "!"
+    // stale flag here still tells you at a glance if the data's gone old.
+    snprintf(line, sizeof(line), "S:%d F:%s%s H:%.1f", lastPacket.sats,
+             lastPacket.fixValid ? "Y" : "N", stale ? "!" : "", lastPacket.hdop);
     u8g2.drawStr(0, 31, line);
-
-    snprintf(line, sizeof(line), "%lus ago", ageMs / 1000);
-    u8g2.drawStr(88, 31, line);
 
     snprintf(line, sizeof(line), "Lat: %.5f", lastPacket.lat);
     u8g2.drawStr(0, 42, line);
@@ -534,6 +542,17 @@ void handleRoot() {
     snprintf(buf, sizeof(buf), "Fix: %s | Sats: %d",
              lastPacket.fixValid ? "yes" : "NO", lastPacket.sats);
     html += "<p class='stat'>" + String(buf) + "</p>";
+
+    // HDOP (horizontal dilution of precision) - lower is better satellite
+    // geometry. Under 2 is good, 2-5 is usable, over 5 means treat the
+    // position as rough even though it's technically "fixed" - the number
+    // to check if a reading seems less precise than expected.
+    const char *hdopLabel = lastPacket.hdop < 2.0f ? "good"
+                           : lastPacket.hdop < 5.0f ? "ok"
+                                                     : "poor";
+    bool hdopPoor = lastPacket.hdop >= 5.0f;
+    snprintf(buf, sizeof(buf), "Fix quality (HDOP): %.1f (%s)", lastPacket.hdop, hdopLabel);
+    html += "<p class='stat" + String(hdopPoor ? " stale" : "") + "'>" + String(buf) + "</p>";
 
     if (haveAltBaseline) {
       float heightAboveGround = lastPacket.alt_m - baselineAltM;

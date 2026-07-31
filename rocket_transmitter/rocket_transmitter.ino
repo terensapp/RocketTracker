@@ -1,6 +1,6 @@
 /*
   ROCKET TRACKER - TRANSMITTER
-  Version:  v2 - pushed 2026-07-26 03:07 UTC. This is when the source itself
+  Version:  v3 - pushed 2026-07-31 16:40 UTC. This is when the source itself
             was last changed - update it whenever this file changes. It's
             deliberately separate from the "Firmware built" timestamp printed
             to Serial at boot, which only tells you when THAT PARTICULAR
@@ -27,10 +27,13 @@
     float    lat         - degrees
     float    lon         - degrees
     float    alt_m       - meters
+    float    hdop        - horizontal dilution of precision, lower = better
+                            geometry/accuracy (under ~2 is good, over ~5 is
+                            poor) - 99.9 means the GPS hasn't reported one yet
     uint8_t  sats        - number of satellites used in fix
     uint8_t  fixValid    - 1 = GPS has a valid fix this packet, 0 = no fix yet
     uint8_t  battPercent - this board's own LiPo charge estimate, 0-100
-  Total size: 19 bytes - small on purpose to keep airtime (and power draw) low.
+  Total size: 23 bytes - small on purpose to keep airtime (and power draw) low.
 */
 
 #include <RadioLib.h>
@@ -75,6 +78,7 @@ struct RocketPacket {
   float    lat;
   float    lon;
   float    alt_m;
+  float    hdop;
   uint8_t  sats;
   uint8_t  fixValid;
   uint8_t  battPercent;
@@ -181,6 +185,11 @@ void sendPacket() {
   packet.lat = packet.fixValid ? (float)gps.location.lat() : 0.0f;
   packet.lon = packet.fixValid ? (float)gps.location.lng() : 0.0f;
   packet.alt_m = (gps.altitude.isValid()) ? (float)gps.altitude.meters() : 0.0f;
+  // 99.9 is a deliberately-bad sentinel, not a real reading - GSA sentences
+  // (which carry HDOP) can lag behind the first fix by a few seconds, so
+  // this avoids ever claiming a fake "great" 0.0 HDOP before the GPS has
+  // actually reported one.
+  packet.hdop = (gps.hdop.isValid()) ? (float)gps.hdop.hdop() : 99.9f;
   packet.sats = (gps.satellites.isValid()) ? (uint8_t)gps.satellites.value() : 0;
   packet.battPercent = batteryPercentFromVoltage(readBatteryVoltage());
 
@@ -197,6 +206,8 @@ void sendPacket() {
     Serial.print(packet.lon, 6);
     Serial.print(F(" sats="));
     Serial.print(packet.sats);
+    Serial.print(F(" hdop="));
+    Serial.print(packet.hdop, 1);
     Serial.print(F(" batt="));
     Serial.print(packet.battPercent);
     Serial.println(F("%"));
