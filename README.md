@@ -71,7 +71,7 @@ If the Feather M0 stack is too tall to fit your airframe, `rocket_transmitter_cu
 | SS12D00-G4 mini slide switch, spliced inline into the battery lead — a common generic part, search that name on Amazon/AliExpress/eBay; the case's switch pocket is sized to its body/lever dimensions (see `SETUP_README.md`) | ~$3-6 for a pack | generic |
 | Micro USB cable, for flashing | — | any micro USB cable |
 
-`enclosures/transmitter_case_cubecell.scad` is the matching case — same snap-lid-and-glue closure and parachute tie tab as the Feather case, but noticeably shallower since there's no board stack to clear.
+`enclosures/transmitter_case_cubecell.scad` is the matching case — same snap-lid-and-glue closure and parachute tie tab as the Feather case, but noticeably shallower since there's no board stack to clear, with slim clearances and rounded corners to help it fit a narrow airframe.
 
 ## Getting started
 

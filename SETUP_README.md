@@ -148,7 +148,7 @@ To use it: open the file in OpenSCAD, set the `part` variable near the top to `"
 
 ### Why smaller
 
-The Feather M0 build stacks three boards (MCU+radio, GPS wing, battery) with headroom between them for header pins and a patch antenna. CubeCell GPS puts the MCU, SX1262 radio, and GPS on one 55.9 x 27.9 x 9.5mm board — no stacking. The matching case (`enclosures/transmitter_case_cubecell.scad`) comes out to roughly 35mm wide x 16mm tall, versus 30mm x 26mm for the Feather case — shallower, which matters more than raw length for sliding into a narrow airframe.
+The Feather M0 build stacks three boards (MCU+radio, GPS wing, battery) with headroom between them for header pins and a patch antenna. CubeCell GPS puts the MCU, SX1262 radio, and GPS on one 55.9 x 27.9 x 9.5mm board — no stacking. The matching case (`enclosures/transmitter_case_cubecell.scad`) comes out to roughly 34mm wide x 15.5mm tall, versus 30mm x 26mm for the Feather case — shallower, which matters more than raw length for sliding into a narrow airframe.
 
 ### Radio compatibility with the existing receiver
 
@@ -200,8 +200,9 @@ If it's the second case, a few things worth knowing (from the Heltec community f
 
 ![Preview of the CubeCell transmitter case](enclosures/transmitter_case_cubecell_preview.png)
 
-`enclosures/transmitter_case_cubecell.scad` follows the same conventions as the Feather case: snap-lid-and-glue closure and a parachute tie tab. Four things are different because the hardware is different:
+`enclosures/transmitter_case_cubecell.scad` follows the same conventions as the Feather case: snap-lid-and-glue closure and a parachute tie tab. Five things are different because the hardware is different:
 
+- **Slimmed down, with rounded corners.** The board/battery pocket clearances were tightened a bit (still a snug hand-fit, not a press-fit — fine for a case that's glued shut once and not reopened), shaving a couple mm off every outer dimension. The 4 vertical corners are also rounded now instead of sharp 90-degree edges — more comfortable to hold, and it genuinely helps the case slide into a round airframe tube, since a rounded rectangle's bounding circle is smaller than a sharp-cornered one's. Only the outer surfaces are rounded; the interior pockets, cutouts, and lip/skirt stay plain rectangles since they're already inset clear of the rounding.
 - **The lid's snap bumps seat into a real detent, not just a flat wall.** Earlier versions of this case copied the Feather case's snap bumps as-is — small nubs that press against a flat wall inside the base's lip cavity with only friction holding them, and barely any interference at that (about 0.05mm after accounting for the fit clearance). It would go on but never really click. This case now cuts a small matching dimple into the lip cavity for each bump, at the exact height the bump reaches when the lid is fully seated, and gives the bumps more interference (0.2mm net instead of 0.05mm) — the bump rubs going in, then relaxes into the dimple right as the lid bottoms out, so you feel an actual click and it resists pulling back off instead of just resting there.
 - **No verified mounting-hole spec** is published for this board, so the case relies on a snug pocket fit rather than screw posts (see the comment in the file).
 - **The antenna hole is cut through the top of the lid** rather than a side wall, sized generously and centered, since a u.FL pigtail is flexible enough to reach an opening almost anywhere above the board — a deliberate choice to avoid guessing a tight side-wall position from an unverified connector location.

@@ -13,9 +13,21 @@
 // FeatherWing + battery) with headroom between them for header pins and a
 // patch antenna. CubeCell GPS puts the MCU, radio, and GPS on one board, so
 // this case only needs to be as tall as one PCB plus its tallest connector,
-// not a whole stack. Rough numbers: this case's footprint is about 35mm
-// wide x 16mm tall, versus 30mm x 26mm for the Feather version - shallower,
+// not a whole stack. Rough numbers: this case's footprint is about 34mm
+// wide x 15.5mm tall, versus 30mm x 26mm for the Feather version - shallower,
 // which matters more than raw length for sliding into a narrow airframe.
+//
+// SLIMMED DOWN + ROUNDED CORNERS: the board/battery pocket clearances
+// (`board_fit`, `batt_fit`, `board_vert_clear`) were tightened to shave a
+// couple mm off every outer dimension - still a snug hand-fit, not a
+// press-fit, since this case is glued shut once and not reopened. The 4
+// vertical corners are also rounded (`case_corner_r`) instead of sharp
+// 90-degree edges - more comfortable to handle, and a rounded rectangle's
+// bounding circle is smaller than a sharp one's, which helps it slide into
+// a round airframe tube. Only the outer surfaces are rounded; every
+// interior cavity (pockets, cutouts, lip/skirt) stays a plain rectangle,
+// since they're all inset `wall` from the edges - comfortably clear of the
+// rounding - and don't need to match it for anything to seat correctly.
 //
 // CLOSURE / RECOVERY: same snap-lid-and-glue closure and parachute tie tab
 // as the Feather case - see that file's header comment for the reasoning,
@@ -87,8 +99,10 @@ board_l   = 55.9;  // Heltec spec: overall board length
 board_w   = 27.9;  // Heltec spec: overall board width
 board_h   = 9.5;   // Heltec spec: overall board height, including the
                     // onboard OLED, connectors, and any other tallest part
-board_fit = 1.0;    // clearance added around the board footprint
-board_vert_clear = 1.5; // headroom above the board's tallest point
+board_fit = 0.6;    // clearance added around the board footprint - tightened
+                     // from 1.0mm to slim the case down; still a snug hand-fit,
+                     // not a press-fit, since this is glued shut once anyway
+board_vert_clear = 1.0; // headroom above the board's tallest point - was 1.5mm
 
 pocket_h = board_h + board_vert_clear;
 
@@ -111,7 +125,7 @@ pocket_h = board_h + board_vert_clear;
 batt_l = 40.0;
 batt_w = 20.0;
 batt_t = 3.0;
-batt_fit = 1.2;
+batt_fit = 0.8; // was 1.2mm - tightened along with board_fit to slim the case
 
 // ---------------------------------------------------------------------
 // Case shell
@@ -121,6 +135,17 @@ floor  = 2.0;
 lid_t  = 2.0;
 lip_h  = 3.0;
 lip_gap = 0.3;
+
+// Rounded corners - the 4 vertical edges of the case (base and lid) are
+// rounded instead of sharp 90-degree corners. Two reasons: it's just more
+// comfortable to handle, and it genuinely helps the case slide into a
+// round airframe tube - a sharp-cornered box's corners are the farthest
+// points from center and the first thing to catch on a curved wall; a
+// rounded rectangle's "worst case" diameter (its bounding circle) shrinks
+// as the corner radius grows. Kept modest (comfortably under `wall`) so it
+// only shaves the outer corners and never comes close to breaching the
+// board/battery pockets, which start `wall` in from every edge.
+case_corner_r = 3.0;
 
 bump_r        = 1.5;
 bump_protrude = 0.5;  // was 0.35 - too little net interference to feel a
@@ -260,19 +285,37 @@ lip_bump_z = case_h - (lip_h - lip_gap) / 2;
 
 echo(str("Case outer footprint: ", case_l, " x ", case_w, " x ", case_h, " mm"));
 
+// A rounded rectangular prism from (0,0,0) to (l,w,h), corner radius r - the
+// standard hull-of-4-corner-cylinders technique. Used for the OUTER surfaces
+// of the base and lid only; interior cavities (pockets, cutouts, lip cavity,
+// skirt) stay plain rectangular cuts since they're already inset `wall` from
+// every edge, comfortably clear of a 3mm corner radius, and don't need to
+// match the rounded exterior for anything to fit or seat correctly.
+module rounded_box(l, w, h, r) {
+  hull() {
+    for (x = [r, l - r])
+      for (y = [r, w - r])
+        translate([x, y, 0])
+          cylinder(r = r, h = h, $fn = 32);
+  }
+}
+
 // ==========================================================================
 // Base
 // ==========================================================================
 module base() {
   difference() {
     union() {
-      cube([case_l, case_w, case_h - lip_h]);
+      rounded_box(case_l, case_w, case_h - lip_h, case_corner_r);
       // lip that the lid seats onto - flush with the case's outer surface,
       // same wall thickness as the rest of the case (validated fix carried
-      // over from the Feather case - see that file's changelog if curious)
+      // over from the Feather case - see that file's changelog if curious).
+      // Outer surface is rounded to match the body below it; the inner
+      // cavity that receives the lid's skirt stays a plain rectangle (the
+      // skirt isn't rounded either, so they still mate exactly as before).
       difference() {
         translate([0, 0, case_h - lip_h])
-          cube([case_l, case_w, lip_h]);
+          rounded_box(case_l, case_w, lip_h, case_corner_r);
         translate([wall, wall, case_h - lip_h - 1])
           cube([case_l - wall*2, case_w - wall*2, lip_h + 2]);
       }
@@ -354,8 +397,9 @@ module lid() {
 
   difference() {
     union() {
-      cube([case_l, case_w, lid_t]);
-      // skirt that inserts into the base's lip cavity
+      rounded_box(case_l, case_w, lid_t, case_corner_r);
+      // skirt that inserts into the base's lip cavity - stays a plain
+      // rectangle (unrounded), matching the base's lip cavity above
       translate([wall + lip_gap, wall + lip_gap, lid_t])
         cube([case_l - wall*2 - lip_gap*2, case_w - wall*2 - lip_gap*2, lip_h - lip_gap]);
 
