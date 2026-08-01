@@ -22,11 +22,13 @@ Full technical detail — packet format, pin mappings, radio settings — is in 
 | Path | What it is |
 | --- | --- |
 | `rocket_transmitter/rocket_transmitter.ino` | Flashes onto the board that rides in the rocket (Feather M0 build) |
-| `rocket_transmitter_cubecell/rocket_transmitter_cubecell.ino` | Alternative transmitter sketch for the smaller CubeCell GPS build |
-| `rocket_receiver/rocket_receiver.ino` | Flashes onto the handheld receiver (works with either transmitter build) |
+| `rocket_transmitter_wireless_tracker/rocket_transmitter_wireless_tracker.ino` | Alternative transmitter sketch for the smaller Heltec Wireless Tracker V2 build (recommended over CubeCell) |
+| `rocket_transmitter_cubecell/rocket_transmitter_cubecell.ino` | Legacy alternative transmitter sketch for the CubeCell GPS build — see the note in its BOM section before buying this board |
+| `rocket_receiver/rocket_receiver.ino` | Flashes onto the handheld receiver (works with any transmitter build) |
 | `SETUP_README.md` | Step-by-step flashing and bench-test guide |
 | `enclosures/transmitter_case.scad` | Parametric 3D-printable case for the Feather M0 transmitter stack |
-| `enclosures/transmitter_case_cubecell.scad` | Parametric 3D-printable case for the CubeCell GPS transmitter |
+| `enclosures/transmitter_case_wireless_tracker.scad` | Parametric 3D-printable case for the Wireless Tracker V2 transmitter |
+| `enclosures/transmitter_case_cubecell.scad` | Parametric 3D-printable case for the CubeCell GPS transmitter (legacy) |
 
 ## Bill of Materials
 
@@ -59,9 +61,23 @@ You only need one N30 for the receiver — the Amazon listing sells them as a 2-
 
 `enclosures/transmitter_case.scad` is a 3D-printable case that holds the whole transmitter stack — board, battery, and a cutout for an inline power switch. See the "3D-printed transmitter case" section in [`SETUP_README.md`](SETUP_README.md) for details and printing notes.
 
-### Alternative transmitter: CubeCell GPS (smaller form factor)
+### Alternative transmitter: Wireless Tracker V2 (smaller form factor, recommended)
 
-If the Feather M0 stack is too tall to fit your airframe, `rocket_transmitter_cubecell/rocket_transmitter_cubecell.ino` is an alternative transmitter sketch for the **Heltec CubeCell GPS (HTCC-AB02S)** — one small board with the MCU, LoRa radio, and GPS all built in, instead of three stacked boards. It sends the exact same packet format, so it works with the **same receiver sketch, unmodified**. This board also has a small onboard OLED, which this sketch uses to show live GPS/radio status (fix, satellite count, battery, last packet sent) — handy for bench-testing outdoors on battery power without a laptop tethered for the Serial Monitor. The screen is off by default to save battery; press the board's user button to check status before a launch, press again to turn it off. See "Alternative build: CubeCell GPS" in [`SETUP_README.md`](SETUP_README.md) for the full picture, including a phaseout-status warning you should read before buying the board.
+If the Feather M0 stack is too tall to fit your airframe, `rocket_transmitter_wireless_tracker/rocket_transmitter_wireless_tracker.ino` is an alternative transmitter sketch for the **Heltec Wireless Tracker V2** — one small board with the MCU, LoRa radio (plus an RF front-end amplifier for extra range), and GNSS all built in, instead of three stacked boards. It sends the exact same packet format, so it works with the **same receiver sketch, unmodified**, and uses **RadioLib** — the same LoRa library the receiver already uses, unlike the CubeCell alternative below. This board also has a small onboard TFT display, which this sketch uses to show live GPS/radio status — handy for bench-testing outdoors on battery power without a laptop tethered for the Serial Monitor. The backlight is off by default to save battery; press the board's user button to check status before a launch, press again to turn it off. See "Alternative build: Wireless Tracker V2" in [`SETUP_README.md`](SETUP_README.md) for the full picture.
+
+| Part | Price | Link |
+| --- | --- | --- |
+| Heltec Wireless Tracker V2 | ~$23–31 (compare Heltec's own store vs. Amazon/AliExpress resellers) | [heltec.org/project/wireless-tracker-v2](https://heltec.org/project/wireless-tracker-v2/) |
+| 3.7V 300mAh LiPo, "302040" size — same JST-SH 1.25mm pitch connector as the CubeCell build | ~$7-9 | generic |
+| Included spring LoRa antenna (ships with the board) — GNSS uses a built-in antenna on the board itself, no separate antenna needed for that | — | included |
+| SS12D00-G4 mini slide switch, spliced inline into the battery lead — same part as the CubeCell build's switch mount | ~$3-6 for a pack | generic |
+| USB-C cable, for flashing | — | any USB-C cable |
+
+`enclosures/transmitter_case_wireless_tracker.scad` is the matching case — same snap-lid-and-glue closure, parachute tie tab, slim clearances, and rounded corners as the CubeCell case, sized for this board instead.
+
+### Legacy alternative: CubeCell GPS
+
+`rocket_transmitter_cubecell/rocket_transmitter_cubecell.ino` and `enclosures/transmitter_case_cubecell.scad` are still in this repo and still work, but **the Wireless Tracker V2 build above is recommended instead** for two reasons: Heltec lists the CubeCell ASR650x series as "Phaseout" on their own docs site, and this board's onboard GPS antenna has multiple independent weak/dead-on-arrival reports on Heltec's community forum. If you already have a CubeCell GPS board, it's documented in full in `SETUP_README.md`, including a workaround for the antenna issue.
 
 | Part | Price | Link |
 | --- | --- | --- |
@@ -71,8 +87,6 @@ If the Feather M0 stack is too tall to fit your airframe, `rocket_transmitter_cu
 | SS12D00-G4 mini slide switch, spliced inline into the battery lead — a common generic part, search that name on Amazon/AliExpress/eBay; the case's switch pocket is sized to its body/lever dimensions (see `SETUP_README.md`) | ~$3-6 for a pack | generic |
 | Micro USB cable, for flashing | — | any micro USB cable |
 
-`enclosures/transmitter_case_cubecell.scad` is the matching case — same snap-lid-and-glue closure and parachute tie tab as the Feather case, but noticeably shallower since there's no board stack to clear, with slim clearances and rounded corners to help it fit a narrow airframe.
-
 ## Getting started
 
 1. Buy the parts above.
@@ -81,4 +95,4 @@ If the Feather M0 stack is too tall to fit your airframe, `rocket_transmitter_cu
 
 ## Status
 
-The Feather M0 transmitter and the receiver are compile-verified (Adafruit SAMD core + esp32 core, RadioLib/TinyGPSPlus/U8g2 — zero errors, zero warnings) but not yet flight-tested on real hardware. The CubeCell GPS transmitter alternative has also been compile-verified against the real CubeCell board package and toolchain (zero errors) — see the caveat about one packaging-only step in `SETUP_README.md`. Bench-test thoroughly before a launch, regardless of which transmitter build you use.
+The Feather M0 transmitter, the Wireless Tracker V2 transmitter, and the receiver are all compile-verified (Adafruit SAMD core / esp32 core, RadioLib/TinyGPSPlus/U8g2/Adafruit GFX+ST7735 — zero errors, zero warnings) but not yet flight-tested on real hardware. The CubeCell GPS transmitter alternative has also been compile-verified against the real CubeCell board package and toolchain (zero errors) — see the caveat about one packaging-only step in `SETUP_README.md`. Bench-test thoroughly before a launch, regardless of which transmitter build you use.

@@ -140,11 +140,57 @@ The lid press-fits onto the base with a lip and 4 small snap bumps that give it 
 
 To use it: open the file in OpenSCAD, set the `part` variable near the top to `"base"` or `"lid"`, press F6 to render, then export as STL — do this once for each part. Leaving `part` set to `"both"` just previews them side by side.
 
-## Alternative build: CubeCell GPS (smaller transmitter)
+## Alternative build: Wireless Tracker V2 (smaller transmitter, recommended)
 
-`rocket_transmitter_cubecell/rocket_transmitter_cubecell.ino` is a second transmitter sketch, for the **Heltec CubeCell GPS (HTCC-AB02S)** instead of the Feather M0 stack. Same job, same 19-byte packet, works with the **same receiver sketch unchanged** — pick whichever transmitter build suits your rocket, you don't need both.
+`rocket_transmitter_wireless_tracker/rocket_transmitter_wireless_tracker.ino` is a second transmitter sketch, for the **Heltec Wireless Tracker V2** (ESP32-S3 + SX1262 LoRa radio with an RF front-end amplifier + UC6580 GNSS + 0.96" TFT, all on one board) instead of the Feather M0 stack. Same job, same 23-byte packet, works with the **same receiver sketch unchanged** — pick whichever transmitter build suits your rocket, you don't need both.
 
-**Read this before buying the board.** Heltec lists the CubeCell ASR650X series (which includes this board) as "Phaseout" — their term for discontinued/end-of-life. It's still buying-and-building-fine today, but if you need a replacement board in a year or two, it may not be available, and you'd be rebuilding around whatever CubeCell's would-be replacement is at that point. The Feather M0 build uses boards Adafruit actively sells and is the safer long-term choice. This alternative exists for anyone who wants the smaller size now and is fine sourcing/stocking a spare board or two themselves.
+This is the recommended small-form-factor build — see "Legacy alternative: CubeCell GPS" further down for why the older CubeCell option isn't recommended anymore.
+
+### Why smaller
+
+The Feather M0 build stacks three boards (MCU+radio, GPS wing, battery) with headroom between them for header pins and a patch antenna. Wireless Tracker V2 puts the MCU, radio, and GNSS on one ~53 x 25.4 x 10.3mm board — no stacking. The matching case (`enclosures/transmitter_case_wireless_tracker.scad`) comes out to roughly 103 x 32 x 17mm — notably narrower than the Feather case, which matters most for sliding into a narrow airframe.
+
+### Radio compatibility with the existing receiver
+
+Unlike CubeCell, this board uses **RadioLib directly** — the exact same library the receiver already uses, against the same SX1262 chip, with the same pin-naming convention the receiver's Meshnology N30 board happens to share (CS/DIO1/RESET/BUSY/SCK/MISO/MOSI all identical numbers). No cross-library sync-word/coding-rate translation table needed like the CubeCell sketch requires — both sides just need to agree on frequency (915MHz), bandwidth (125kHz), spreading factor (SF9), coding rate (4/7), and sync word (0x12), all matched already.
+
+One extra wrinkle this board has that the receiver doesn't: an external RF front-end chip (KCT8103L) between the SX1262 and the antenna, which is what gets this board's LoRa range up past a plain SX1262's ceiling. Three GPIOs power and enable it once at boot (see the comments at the top of the `.ino` file) — nothing you need to touch, just worth knowing it's there if you're comparing this sketch's `setup()` to the receiver's.
+
+### Board package and flashing
+
+1. **File > Preferences > Additional Board Manager URLs**, add:
+   ```
+   https://espressif.github.io/arduino-esp32/package_esp32_index.json
+   ```
+2. **Tools > Board > Boards Manager** > install **"esp32"** (by Espressif Systems)
+3. Select board: **"ESP32S3 Dev Module"**
+4. **Tools > USB CDC On Boot: "Enabled"** — needed to see Serial output over the USB-C port without a separate UART adapter
+5. **Library Manager**, install: **RadioLib** (Jan Gromes), **TinyGPSPlus** (Mikal Hart), **Adafruit GFX Library**, and **Adafruit ST7735 and ST7789 Library** (both Adafruit) — the first two are already installed if you've set up the Feather or receiver sketches; the two display libraries are new for this build (the CubeCell and Feather builds use a different, OLED-only display library).
+6. Open `rocket_transmitter_wireless_tracker.ino`, hit Upload.
+
+### Compile verification
+
+This sketch has been compiled clean against the real esp32-s3 toolchain (esp32 core 3.3.11, RadioLib, TinyGPSPlus, Adafruit GFX + ST7735) — zero errors, zero warnings. The pin map it's built from (LoRa, GNSS, display, battery ADC, RF front-end control) comes from Meshtastic's published, community-tested firmware source for this exact board, not a guess from a datasheet — but the GPS fix behavior, display rendering, and RF front-end sequencing haven't been exercised on real hardware yet the way the Feather build has. Bench-test thoroughly before a launch.
+
+### Battery connector and antenna
+
+Same **JST-SH, 1.25mm pitch** battery connector as the CubeCell build (not the JST-PH 2.0mm pitch on the Feather build) — the same "302040" 300mAh LiPo works, just double-check the connector on your specific battery listing. The board ships with a LoRa antenna in the box; the GNSS antenna is built directly into the board (an LDS antenna etched onto the PCB) and needs nothing else connected for normal use.
+
+### Status button
+
+The TFT backlight is off by default to save battery — the display keeps updating in the background either way, so the moment you press the board's user/PRG button, it shows current status immediately, no lag. Press again to turn the backlight back off. Same routine as the CubeCell build: power on, give the GPS a few minutes outdoors, press the button and confirm a real fix before it goes in the rocket, press again before closing up the case.
+
+### Case
+
+![Preview of the Wireless Tracker V2 transmitter case](enclosures/transmitter_case_wireless_tracker_preview.png)
+
+`enclosures/transmitter_case_wireless_tracker.scad` follows the same conventions as the CubeCell case — snap-lid-and-glue closure with a real detent click, parachute tie tab, slim clearances, rounded corners, and the same SS12D00-G4 keyed switch mount — just resized for this board. One difference: it only has **one** antenna hole (through the lid, same reasoning as the CubeCell case — a generous, centered hole rather than guessing an exact side-wall position), since the GNSS antenna doesn't need one at all by default. As always: print the base first, test-fit your actual board, battery, and switch before printing the lid.
+
+## Legacy alternative: CubeCell GPS (smaller transmitter)
+
+`rocket_transmitter_cubecell/rocket_transmitter_cubecell.ino` is a third transmitter sketch, for the **Heltec CubeCell GPS (HTCC-AB02S)** instead of the Feather M0 stack. Same job, same 23-byte packet, works with the **same receiver sketch unchanged** — pick whichever transmitter build suits your rocket, you don't need all three.
+
+**The Wireless Tracker V2 build above is recommended over this one** for two reasons: Heltec's own docs site lists the CubeCell ASR650X series as "Phaseout" — their term for discontinued/end-of-life — and this board's onboard GPS antenna has multiple independent weak/dead-on-arrival reports on Heltec's community forum (see the troubleshooting section below if you already have one and are chasing a no-fix issue). This section is kept for anyone who already bought the board or wants the option anyway.
 
 ### Why smaller
 
