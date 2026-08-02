@@ -1,6 +1,6 @@
 /*
   ROCKET TRACKER - RECEIVER
-  Version: v9 - pushed 2026-07-31 16:40 UTC. This is when the source itself
+  Version: v10 - pushed 2026-08-02 03:01 UTC. This is when the source itself
            was last changed - update it whenever this file changes. It's
            deliberately separate from the "Firmware built" timestamp printed
            to Serial at boot, which only tells you when THAT PARTICULAR
@@ -410,11 +410,17 @@ void drawStatus() {
     // all three on one row at this font size - the web page spells them out
     // in full. HDOP is the number to watch if a fix seems imprecise: under
     // 2 is good satellite geometry, over 5 means don't trust it for
-    // anything precise even though it says "fix". The old "Xs ago" reading
-    // that used to share this row moved to the web page only - the "!"
-    // stale flag here still tells you at a glance if the data's gone old.
+    // anything precise even though it says "fix". No separate "Xs ago"
+    // row fits at this font size, so instead of a bare "!" flag, a stale
+    // reading shows its actual age in parens right after the fix letter -
+    // costs no extra space when data's fresh, gives the real number
+    // instead of just a flag when it's not.
+    char staleSuffix[12] = "";
+    if (stale) {
+      snprintf(staleSuffix, sizeof(staleSuffix), "(%lus)", ageMs / 1000);
+    }
     snprintf(line, sizeof(line), "S:%d F:%s%s H:%.1f", lastPacket.sats,
-             lastPacket.fixValid ? "Y" : "N", stale ? "!" : "", lastPacket.hdop);
+             lastPacket.fixValid ? "Y" : "N", staleSuffix, lastPacket.hdop);
     u8g2.drawStr(0, 31, line);
 
     snprintf(line, sizeof(line), "Lat: %.5f", lastPacket.lat);
