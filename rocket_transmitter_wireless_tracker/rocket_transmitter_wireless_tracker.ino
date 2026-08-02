@@ -416,6 +416,21 @@ void showStatus() {
   tft.print("%  tx:#");
   tft.println(pendingPacket.seq);
 
+  // Raw chars-received and checksum-failure counts, same numbers the
+  // serial log prints - shown here too so you can diagnose a no-fix
+  // situation entirely from the screen if Serial isn't cooperating (a
+  // common ESP32-S3 gotcha: Tools > USB CDC On Boot must be "Enabled" to
+  // see Serial output over the USB-C port at all - see the top of this
+  // file). High checksumFail relative to chars points to a baud/wiring
+  // problem; chars stuck near 0 means no data is reaching the chip at
+  // all; low checksumFail with plenty of chars but still no fix is a
+  // genuine reception/antenna problem, not a code or connection problem.
+  tft.setCursor(0, 60);
+  tft.print("cs:");
+  tft.print(gps.charsProcessed());
+  tft.print(" cf:");
+  tft.println(gps.failedChecksum());
+
   tft.setCursor(0, 48);
   if (pendingPacket.fixValid) {
     tft.print(pendingPacket.lat, 4);
