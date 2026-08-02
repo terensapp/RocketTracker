@@ -282,6 +282,14 @@ void setup() {
   if (state != RADIOLIB_ERR_NONE) {
     Serial.print("Radio init failed, code ");
     Serial.println(state);
+    // Force the backlight on for this - it defaults off at boot (see
+    // "DISPLAY / GPS SHARE ONE POWER RAIL" above) and nothing later in
+    // this file ever gets a chance to turn it on via the button, since
+    // we're about to hang here forever. Without this, a radio init
+    // failure looks identical to a healthy board with the backlight
+    // just not toggled on yet - completely blank, no way to tell them
+    // apart - which is exactly the trap this fixes.
+    digitalWrite(TFT_BL, HIGH);
     tft.setCursor(0, 0);
     tft.println("RADIO INIT FAILED");
     tft.println(state);
