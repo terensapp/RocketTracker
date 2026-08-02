@@ -137,8 +137,21 @@
 #define VEXT_ENABLE_PIN 3
 
 // GNSS (UC6580) - separate hardware UART, not the same one as USB/Serial.
-#define GPS_RX_PIN    33   // ESP32 RX - wired to the GNSS chip's TX
-#define GPS_TX_PIN    34   // ESP32 TX - wired to the GNSS chip's RX
+// These two names are taken verbatim from Meshtastic's variant.h for this
+// board (see the pin map note near the top of this file), but that source
+// only gave pin *numbers*, not the actual Serial.begin() call - and
+// "GPS_RX_PIN" is genuinely ambiguous between two conventions: "the
+// ESP32's own RX pin" (what this file originally assumed) vs. "the pin
+// wired to the GPS chip's RX input" (i.e., the ESP32's TX pin, from the
+// GPS's point of view). Field testing showed chars arriving but every
+// single one failing checksum - garbled data, not "no fix yet" - which
+// matches listening on the wrong pin far better than a reception problem.
+// So this now assumes the second convention and swaps which one is
+// passed as the ESP32's rxPin vs. txPin below. If GPS data is still
+// garbled after this, the pin numbers themselves (not just their
+// rx/tx role) are the next thing to question.
+#define GPS_RX_PIN    33
+#define GPS_TX_PIN    34
 #define GPS_RESET_PIN 35
 #define GPS_BAUD      115200  // UC6580 default - NOT the 9600 baud the
                                // other builds' GPS chips use
@@ -273,7 +286,9 @@ void setup() {
   // Meshtastic's variant.h, which this is taken from.
   pinMode(GPS_RESET_PIN, OUTPUT);
   digitalWrite(GPS_RESET_PIN, HIGH);
-  Serial1.begin(GPS_BAUD, SERIAL_8N1, GPS_RX_PIN, GPS_TX_PIN);
+  // Swapped vs. the field-tested-wrong first attempt - see the comment on
+  // GPS_RX_PIN/GPS_TX_PIN above for why.
+  Serial1.begin(GPS_BAUD, SERIAL_8N1, GPS_TX_PIN, GPS_RX_PIN);
 
   SPI.begin(LORA_SCK, LORA_MISO, LORA_MOSI, LORA_CS);
   int state = radio.begin(LORA_FREQ_MHZ, LORA_BW_KHZ, LORA_SF, LORA_CR,
