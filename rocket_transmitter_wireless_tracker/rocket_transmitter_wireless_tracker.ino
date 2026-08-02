@@ -1,11 +1,13 @@
 /*
   ROCKET TRACKER - TRANSMITTER (Heltec Wireless Tracker V2 alternative)
-  Version:  v5 - pushed 2026-08-02 03:55 UTC. This is when the source itself
+  Version:  v6 - pushed 2026-08-02 UTC. This is when the source itself
             was last changed - update it whenever this file changes (same
             convention as the other sketches in this repo). GPS still not
             confirmed getting a clean fix on real hardware as of this
-            version - see the troubleshooting note on GPS_RX_PIN/
-            GPS_TX_PIN below for the active investigation.
+            version - added a GNSS reboot-banner detector to test the
+            leading hypothesis (Vext power brownout resetting the chip
+            mid-search) - see the troubleshooting note near GPS_RESET_PIN
+            below for the active investigation.
   Board:    Heltec Wireless Tracker V2 (ESP32-S3FN8 + SX1262 LoRa radio +
             UC6580 GNSS + 0.96" ST7735 TFT, all on one small board with a
             built-in RF front-end amplifier for extra LoRa range)
@@ -90,6 +92,7 @@
 */
 
 #include <SPI.h>
+#include <string.h>
 #include <RadioLib.h>
 #include <TinyGPSPlus.h>
 #include <Adafruit_GFX.h>
@@ -142,7 +145,7 @@
 // Pin numbers taken verbatim from Meshtastic's variant.h for this board
 // (see the pin map note near the top of this file).
 //
-// TROUBLESHOOTING HISTORY (read this if GPS data still looks garbled):
+// TROUBLESHOOTING HISTORY (read this if GPS still isn't getting a fix):
 // Field testing found chars arriving but consistently failing checksum -
 // garbled, not just "no fix yet." First guess was that GPS_RX_PIN/
 // GPS_TX_PIN were swapped (Meshtastic's source only gave pin numbers, not
@@ -153,9 +156,31 @@
 // (rx=GPS_RX_PIN, tx=GPS_TX_PIN) is the one with a real connection, so
 // that's what's kept. The baud rate has also been independently confirmed
 // as this chip's factory default (115200), so that's not it either.
-// Current leading suspect: GPS_RESET_PIN's polarity (see the comment on
-// it in setup() below) - if backwards, it could hold the chip in a
-// marginal reset state that produces exactly this kind of noisy output.
+// Next suspect was GPS_RESET_PIN's polarity - it was previously driven
+// OUTPUT+HIGH on a guess, changed to a floating INPUT (see setup() below),
+// and that fix worked: checksumFail dropped to 0 across 3.4M+ characters
+// and 48+ minutes of runtime. So the UART link is now provably clean.
+// But that same test still showed zero fix, ever - so the remaining
+// problem is downstream of the UART: the UC6580 itself never tracks a
+// satellite. Two Meshtastic GitHub issues describe this exact board/chip:
+//   - meshtastic/firmware#7786: one user's fix was sending a $CFGSYS
+//     config command to explicitly (re)enable constellations - but a
+//     maintainer's own testing (issue #5088 below) found the module
+//     already defaults to all constellations enabled ($CFGSYS,H35155 is
+//     the factory default), so this is likely a red herring, not
+//     implemented here.
+//   - meshtastic/firmware#5088 (more relevant): Vext (this board's GPS/
+//     display power rail, see VEXT_ENABLE_PIN above) can brown out under
+//     USB-only power - multiple users saw it sag to ~1.5V and the UC6580
+//     silently reboot, repeatedly, losing all acquisition progress each
+//     time. That would look exactly like this: perfectly clean NMEA
+//     (each boot cycle emits valid sentences) but never a fix, because
+//     cold-start satellite acquisition never gets enough uninterrupted
+//     time to complete. feedGpsRebootDetector() below (new) watches the
+//     raw UART stream for the UC6580's boot banner ("...UC6580...") - if
+//     it fires more than once, that CONFIRMS the chip is repeatedly
+//     resetting, not just slow to find satellites. Watch Serial (or the
+//     "rb:" count on the TFT) for this.
 #define GPS_RX_PIN    33
 #define GPS_TX_PIN    34
 #define GPS_RESET_PIN 35
@@ -215,6 +240,39 @@ RocketPacket pendingPacket = {0, 0.0f, 0.0f, 0.0f, 99.9f, 0, 0, 0};
 bool displayOn = false;
 bool buttonWasPressed = false;
 uint32_t lastButtonEdgeMillis = 0;
+
+// GNSS reboot-banner detector - see the troubleshooting note near
+// GPS_RESET_PIN above for why this exists. Every time the UC6580 powers
+// up it emits a product-info banner containing "UC6580" before any NMEA
+// sentences - TinyGPSPlus silently ignores this (it only understands
+// "$"-prefixed NMEA), so we scan the raw byte stream ourselves in
+// parallel with feeding gps.encode(). A sliding window is enough; no
+// need to line-buffer.
+#define GPS_BANNER_BUF_LEN 24
+char gpsBannerBuf[GPS_BANNER_BUF_LEN + 1] = {0};
+uint32_t gpsRebootCount = 0;
+uint32_t lastBannerDetectMillis = 0;
+
+void feedGpsRebootDetector(char c) {
+  memmove(gpsBannerBuf, gpsBannerBuf + 1, GPS_BANNER_BUF_LEN - 1);
+  gpsBannerBuf[GPS_BANNER_BUF_LEN - 1] = c;
+  gpsBannerBuf[GPS_BANNER_BUF_LEN] = '\0';
+
+  uint32_t now = millis();
+  // 5s cooldown so one banner (which is much longer than 24 chars) only
+  // counts once, not dozens of times as it scrolls through the window.
+  if (strstr(gpsBannerBuf, "UC6580") != NULL && (now - lastBannerDetectMillis) > 5000) {
+    lastBannerDetectMillis = now;
+    gpsRebootCount++;
+    Serial.print("*** GPS BOOT BANNER SEEN at t=");
+    Serial.print(now);
+    Serial.print("ms, reboot count=");
+    Serial.print(gpsRebootCount);
+    Serial.println(gpsRebootCount > 1
+      ? " -- chip is resetting mid-flight (see meshtastic/firmware#5088, Vext brownout)"
+      : " (expected once at power-on)");
+  }
+}
 
 // ---------------------------------------------------------------------
 // Battery
@@ -338,7 +396,9 @@ void loop() {
   // Feed every available GPS byte into the parser continuously - never
   // block here, or NMEA sentences get missed.
   while (Serial1.available() > 0) {
-    gps.encode(Serial1.read());
+    char c = Serial1.read();
+    feedGpsRebootDetector(c);
+    gps.encode(c);
   }
 
   uint32_t now = millis();
@@ -404,7 +464,9 @@ void sendPacket() {
   Serial.print(" sentencesWithFix=");
   Serial.print(gps.sentencesWithFix());
   Serial.print(" checksumFail=");
-  Serial.println(gps.failedChecksum());
+  Serial.print(gps.failedChecksum());
+  Serial.print(" gpsReboots=");
+  Serial.println(gpsRebootCount);
 
   if (displayOn) {
     showStatus();
@@ -467,7 +529,13 @@ void showStatus() {
   tft.print("cs:");
   tft.print(gps.charsProcessed());
   tft.print(" cf:");
-  tft.println(gps.failedChecksum());
+  tft.print(gps.failedChecksum());
+  // rb = GNSS reboot count (see feedGpsRebootDetector() above). 1 is
+  // normal (power-on boot). >1 means the chip is resetting mid-session -
+  // that's the smoking gun for the Vext brownout theory, not just slow
+  // satellite acquisition.
+  tft.print(" rb:");
+  tft.println(gpsRebootCount);
 
   tft.setCursor(0, 48);
   if (pendingPacket.fixValid) {
