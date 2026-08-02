@@ -1,11 +1,14 @@
 /*
   ROCKET TRACKER - RECEIVER
-  Version: v10 - pushed 2026-08-02 03:01 UTC. This is when the source itself
+  Version: v11 - pushed 2026-08-02 UTC. This is when the source itself
            was last changed - update it whenever this file changes. It's
            deliberately separate from the "Firmware built" timestamp printed
            to Serial at boot, which only tells you when THAT PARTICULAR
            UPLOAD was compiled - not useful if you write code and don't get
-           around to flashing it until hours (or days) later.
+           around to flashing it until hours (or days) later. v11 disables
+           the AP's DHCP default-route advertisement so phones keep
+           cellular data (and Maps) available while connected - see
+           disableApDefaultRoute() below.
   Board:  Meshnology N30 (ESP32-S3 + SX1262, Heltec WiFi LoRa 32 V3 architecture)
   Role:   Handheld unit. Listens for LoRa packets from the rocket, shows the
           latest fix (plus height above the pad and max height reached) on
@@ -44,6 +47,7 @@
 #include <WiFi.h>
 #include <WebServer.h>
 #include "esp_sleep.h"
+#include "esp_netif.h"
 
 // ---------------------------------------------------------------------
 // CONFIGURE ME
@@ -213,6 +217,7 @@ void setup() {
   // Start the WiFi hotspot + web server
   WiFi.mode(WIFI_AP);
   WiFi.softAP(AP_SSID, AP_PASS);
+  disableApDefaultRoute();
   Serial.print(F("AP started. Connect to WiFi \""));
   Serial.print(AP_SSID);
   Serial.print(F("\" then open http://"));
@@ -221,6 +226,52 @@ void setup() {
   server.on("/", handleRoot);
   server.on("/newlaunch", handleNewLaunch);
   server.begin();
+}
+
+// This board has no internet uplink of its own - it's a local-only hotspot.
+// But by default, ESP32's DHCP server still advertises itself as the
+// network's default gateway (DHCP option 3), which is exactly what a real
+// router would do. Phones take that at face value and route ALL traffic
+// through this WiFi network once connected - including the "Navigate to
+// Rocket" tap, which needs the phone's own cellular data to reach Google
+// Maps' servers. Result: connect to RocketTracker, tap Navigate, Maps
+// fails to load, because the phone stopped using cellular the moment it
+// joined this network.
+//
+// The fix: strip the router option out of the DHCP offer entirely. With
+// no gateway advertised, the phone correctly treats this network as
+// "local-only, no internet" - it still uses this WiFi to reach the
+// receiver's own web page (same subnet, no gateway needed for that), but
+// falls back to cellular data for anything that actually needs the
+// internet, Maps included. This is the same trick most WiFi-based IoT
+// setup flows use for exactly this reason.
+//
+// Heads up: your phone may show a "No internet, stay connected?" prompt
+// the first time it joins - that's expected and correct here, not a sign
+// anything's wrong. Tap to stay connected.
+void disableApDefaultRoute() {
+  esp_netif_t* apNetif = esp_netif_get_handle_from_ifkey("WIFI_AP_DEF");
+  if (apNetif == nullptr) {
+    Serial.println(F("AP DHCP: couldn't get netif handle - default route NOT disabled (Maps may fail to load while connected)."));
+    return;
+  }
+
+  // Options can only be changed while the DHCP server is stopped, so
+  // bounce it - this runs once at boot, well before any phone has had a
+  // chance to connect and request a lease.
+  esp_netif_dhcps_stop(apNetif);
+  uint8_t offerRouter = 0; // 0 = leave DHCP option 3 (router) out of offers
+  esp_err_t err = esp_netif_dhcps_option(apNetif, ESP_NETIF_OP_SET,
+                                          ESP_NETIF_ROUTER_SOLICITATION_ADDRESS,
+                                          &offerRouter, sizeof(offerRouter));
+  esp_netif_dhcps_start(apNetif);
+
+  if (err == ESP_OK) {
+    Serial.println(F("AP DHCP: default route disabled - phones should keep cellular data available for Maps."));
+  } else {
+    Serial.print(F("AP DHCP: failed to disable default route, err="));
+    Serial.println((int)err);
+  }
 }
 
 void loop() {
