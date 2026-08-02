@@ -1,9 +1,11 @@
 /*
   ROCKET TRACKER - TRANSMITTER (Heltec Wireless Tracker V2 alternative)
-  Version:  v1 - first cut, not yet flight-tested. Compile-verified against
-            the real ESP32-S3 toolchain (see SETUP_README.md), but the GPS/
-            LoRa/display pin behavior on real hardware hasn't been confirmed
-            yet the way the CubeCell build eventually was - test thoroughly.
+  Version:  v5 - pushed 2026-08-02 03:55 UTC. This is when the source itself
+            was last changed - update it whenever this file changes (same
+            convention as the other sketches in this repo). GPS still not
+            confirmed getting a clean fix on real hardware as of this
+            version - see the troubleshooting note on GPS_RX_PIN/
+            GPS_TX_PIN below for the active investigation.
   Board:    Heltec Wireless Tracker V2 (ESP32-S3FN8 + SX1262 LoRa radio +
             UC6580 GNSS + 0.96" ST7735 TFT, all on one small board with a
             built-in RF front-end amplifier for extra LoRa range)
@@ -137,19 +139,23 @@
 #define VEXT_ENABLE_PIN 3
 
 // GNSS (UC6580) - separate hardware UART, not the same one as USB/Serial.
-// These two names are taken verbatim from Meshtastic's variant.h for this
-// board (see the pin map note near the top of this file), but that source
-// only gave pin *numbers*, not the actual Serial.begin() call - and
-// "GPS_RX_PIN" is genuinely ambiguous between two conventions: "the
-// ESP32's own RX pin" (what this file originally assumed) vs. "the pin
-// wired to the GPS chip's RX input" (i.e., the ESP32's TX pin, from the
-// GPS's point of view). Field testing showed chars arriving but every
-// single one failing checksum - garbled data, not "no fix yet" - which
-// matches listening on the wrong pin far better than a reception problem.
-// So this now assumes the second convention and swaps which one is
-// passed as the ESP32's rxPin vs. txPin below. If GPS data is still
-// garbled after this, the pin numbers themselves (not just their
-// rx/tx role) are the next thing to question.
+// Pin numbers taken verbatim from Meshtastic's variant.h for this board
+// (see the pin map note near the top of this file).
+//
+// TROUBLESHOOTING HISTORY (read this if GPS data still looks garbled):
+// Field testing found chars arriving but consistently failing checksum -
+// garbled, not just "no fix yet." First guess was that GPS_RX_PIN/
+// GPS_TX_PIN were swapped (Meshtastic's source only gave pin numbers, not
+// the actual Serial.begin() call, and "GPS_RX_PIN" is genuinely ambiguous
+// between "the ESP32's own RX pin" and "the pin wired to the GPS's RX
+// input"). Swapping them produced total silence instead - worse, not
+// better - which points the other way: the ORIGINAL assignment below
+// (rx=GPS_RX_PIN, tx=GPS_TX_PIN) is the one with a real connection, so
+// that's what's kept. The baud rate has also been independently confirmed
+// as this chip's factory default (115200), so that's not it either.
+// Current leading suspect: GPS_RESET_PIN's polarity (see the comment on
+// it in setup() below) - if backwards, it could hold the chip in a
+// marginal reset state that produces exactly this kind of noisy output.
 #define GPS_RX_PIN    33
 #define GPS_TX_PIN    34
 #define GPS_RESET_PIN 35
@@ -282,13 +288,22 @@ void setup() {
   tft.setTextColor(ST77XX_WHITE);
   tft.setTextWrap(false);
 
-  // GPS reset line idle-high (not asserted) - see GPS_RESET_MODE in
-  // Meshtastic's variant.h, which this is taken from.
-  pinMode(GPS_RESET_PIN, OUTPUT);
-  digitalWrite(GPS_RESET_PIN, HIGH);
-  // Swapped vs. the field-tested-wrong first attempt - see the comment on
-  // GPS_RX_PIN/GPS_TX_PIN above for why.
-  Serial1.begin(GPS_BAUD, SERIAL_8N1, GPS_TX_PIN, GPS_RX_PIN);
+  // GPS reset line - deliberately NOT driven here. It was previously set
+  // OUTPUT+HIGH based on a guess about Meshtastic's GPS_RESET_MODE define
+  // (only ever saw the pin number, never the actual reset-handling code
+  // that consumes it), and field testing points at this pin as the likely
+  // cause of consistently garbled GPS data - a wrong-polarity drive could
+  // hold the chip in a marginal reset state instead of cleanly in or out
+  // of it. Leaving it as a floating input lets the board's own hardware
+  // default (whatever that is) take over instead of an unverified guess.
+  // If GPS data is clean after this, we know the polarity was backwards;
+  // if it's still garbled, this pin wasn't the cause and the pin numbers
+  // themselves are the next thing to question - see the note on
+  // GPS_RX_PIN/GPS_TX_PIN above for the full troubleshooting history.
+  pinMode(GPS_RESET_PIN, INPUT);
+  // Reverted to the original (non-swapped) assignment - see the note on
+  // GPS_RX_PIN/GPS_TX_PIN above for why the swap was undone.
+  Serial1.begin(GPS_BAUD, SERIAL_8N1, GPS_RX_PIN, GPS_TX_PIN);
 
   SPI.begin(LORA_SCK, LORA_MISO, LORA_MOSI, LORA_CS);
   int state = radio.begin(LORA_FREQ_MHZ, LORA_BW_KHZ, LORA_SF, LORA_CR,
